@@ -1,0 +1,135 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "annex-backend",
+      "dependencies": {
+        "@hono/auth-js": "^1.0.16",
+        "hono": "^4.7.10",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
+  },
+  "packages": {
+    "@auth/core": [
+      "@auth/core@0.39.1",
+      "",
+      {
+        "dependencies": {
+          "@panva/hkdf": "^1.2.1",
+          "jose": "^6.0.6",
+          "oauth4webapi": "^3.3.0",
+          "preact": "10.24.3",
+          "preact-render-to-string": "6.5.11"
+        },
+        "peerDependencies": {
+          "@simplewebauthn/browser": "^9.0.1",
+          "@simplewebauthn/server": "^9.0.2",
+          "nodemailer": "^6.8.0"
+        },
+        "optionalPeers": [
+          "@simplewebauthn/browser",
+          "@simplewebauthn/server",
+          "nodemailer"
+        ]
+      },
+      "sha512-McD8slui0oOA1pjR5sPjLPl5Zm//nLP/8T3kr8hxIsvNLvsiudYvPHhDFPjh1KcZ2nFxCkZmP6bRxaaPd/AnLA=="
+    ],
+    "@hono/auth-js": [
+      "@hono/auth-js@1.0.16",
+      "",
+      {
+        "peerDependencies": {
+          "@auth/core": "0.*",
+          "hono": ">=3.*",
+          "react": "^18 || ^19 || ^19.0.0-rc"
+        }
+      },
+      "sha512-pJYAUWEe+V0eNa3/U6OwZvzj1mkciwe0xkHiSEGX+5qL+cLI/FSES7vU533yaXit9Ce8r8AH5LJjG/WDyeVkxw=="
+    ],
+    "@panva/hkdf": [
+      "@panva/hkdf@1.2.1",
+      "",
+      {},
+      "sha512-6oclG6Y3PiDFcoyk8srjLfVKyMfVCKJ27JwNPViuXziFpmdz+MZnZN/aKY0JGXgYuO/VghU0jcOAZgWXZ1Dmrw=="
+    ],
+    "@types/bun": [
+      "@types/bun@1.2.14",
+      "",
+      {
+        "dependencies": {
+          "bun-types": "1.2.14"
+        }
+      },
+      "sha512-VsFZKs8oKHzI7zwvECiAJ5oSorWndIWEVhfbYqZd4HI/45kzW7PN2Rr5biAzvGvRuNmYLSANY+H59ubHq8xw7Q=="
+    ],
+    "@types/node": [
+      "@types/node@22.15.21",
+      "",
+      {
+        "dependencies": {
+          "undici-types": "~6.21.0"
+        }
+      },
+      "sha512-EV/37Td6c+MgKAbkcLG6vqZ2zEYHD7bvSrzqqs2RIhbA6w3x+Dqz8MZM3sP6kGTeLrdoOgKZe+Xja7tUB2DNkQ=="
+    ],
+    "bun-types": [
+      "bun-types@1.2.14",
+      "",
+      {
+        "dependencies": {
+          "@types/node": "*"
+        }
+      },
+      "sha512-Kuh4Ub28ucMRWeiUUWMHsT9Wcbr4H3kLIO72RZZElSDxSu7vpetRvxIUDUaW6QtaIeixIpm7OXtNnZPf82EzwA=="
+    ],
+    "hono": [
+      "hono@4.7.10",
+      "",
+      {},
+      "sha512-QkACju9MiN59CKSY5JsGZCYmPZkA6sIW6OFCUp7qDjZu6S6KHtJHhAc9Uy9mV9F8PJ1/HQ3ybZF2yjCa/73fvQ=="
+    ],
+    "jose": [
+      "jose@6.0.11",
+      "",
+      {},
+      "sha512-QxG7EaliDARm1O1S8BGakqncGT9s25bKL1WSf6/oa17Tkqwi8D2ZNglqCF+DsYF88/rV66Q/Q2mFAy697E1DUg=="
+    ],
+    "oauth4webapi": [
+      "oauth4webapi@3.5.1",
+      "",
+      {},
+      "sha512-txg/jZQwcbaF7PMJgY7aoxc9QuCxHVFMiEkDIJ60DwDz3PbtXPQnrzo+3X4IRYGChIwWLabRBRpf1k9hO9+xrQ=="
+    ],
+    "preact": [
+      "preact@10.24.3",
+      "",
+      {},
+      "sha512-Z2dPnBnMUfyQfSQ+GBdsGa16hz35YmLmtTLhM169uW944hYL6xzTYkJjC07j+Wosz733pMWx0fgON3JNw1jJQA=="
+    ],
+    "preact-render-to-string": [
+      "preact-render-to-string@6.5.11",
+      "",
+      {
+        "peerDependencies": {
+          "preact": ">=10"
+        }
+      },
+      "sha512-ubnauqoGczeGISiOh6RjX0/cdaF8v/oDXIjO85XALCQjwQP+SB4RDXXtvZ6yTYSjG+PC1QRP2AhPgCEsM2EvUw=="
+    ],
+    "react": [
+      "react@19.1.0",
+      "",
+      {},
+      "sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg=="
+    ],
+    "undici-types": [
+      "undici-types@6.21.0",
+      "",
+      {},
+      "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="
+    ],
+  }
+}
