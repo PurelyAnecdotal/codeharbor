@@ -11,7 +11,10 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
-		"lint": "prettier --check . && eslint ."
+		"lint": "prettier --check . && eslint .",
+		"db:push": "drizzle-kit push",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
@@ -25,6 +28,7 @@
 		"@types/dockerode": "^3.3.39",
 		"bits-ui": "^1.5.0",
 		"clsx": "^2.1.1",
+		"drizzle-kit": "^0.30.2",
 		"eslint": "^9.18.0",
 		"eslint-config-prettier": "^10.0.1",
 		"eslint-plugin-svelte": "^3.0.0",
@@ -46,6 +50,7 @@
 		"@auth/sveltekit": "^1.9.2",
 		"@octokit/rest": "^21.1.1",
 		"dockerode": "^4.0.6",
+		"drizzle-orm": "^0.40.0",
 		"mode-watcher": "^1.0.7"
 	}
 }

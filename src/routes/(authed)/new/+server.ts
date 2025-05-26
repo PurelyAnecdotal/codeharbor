@@ -1,13 +1,19 @@
-import Dockerode from 'dockerode';
-
-const docker = new Dockerode({});
+import { db } from '$lib/server/db/index.js';
+import { workspaces } from '$lib/server/db/schema.js';
+import { docker } from '$lib/server/docker.js';
 
 const gitImage = 'cgr.dev/chainguard/git';
 
 const serverImage = 'ghcr.io/linuxserver/openvscode-server:latest';
 
-export async function POST({ request }) {
-	const { cloneURL } = await request.json();
+export async function POST({ request, locals }) {
+	const session = await locals.auth();
+
+	if (!session || !session.id || !session.accessToken) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+
+	const { cloneURL, name } = await request.json();
 
 	try {
 		const url = new URL(cloneURL);
@@ -17,7 +23,9 @@ export async function POST({ request }) {
 	}
 
 	const id = Math.random().toString(36).substring(2, 15);
-    // const id = crypto.randomUUID();
+	// const id = crypto.randomUUID();
+
+	const authenticatedURL = `https://${session.accessToken}@github.com${new URL(cloneURL).pathname}`;
 
 	const git = await docker.createContainer({
 		Image: gitImage,
@@ -31,7 +39,7 @@ export async function POST({ request }) {
 				}
 			]
 		},
-		Entrypoint: ['/usr/bin/git', 'clone', cloneURL, '/home/git']
+		Entrypoint: ['/usr/bin/git', 'clone', authenticatedURL, '/home/git']
 	});
 
 	await git.start();
@@ -55,6 +63,14 @@ export async function POST({ request }) {
 				}
 			]
 		}
+	});
+
+	await db.insert(workspaces).values({
+		uuid: id,
+		name: name,
+		ownerId: session.id,
+		dockerId: container.id,
+		repoURL: cloneURL
 	});
 
 	console.log('Starting container');

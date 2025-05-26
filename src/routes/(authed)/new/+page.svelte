@@ -33,14 +33,12 @@
 
 		creating = true;
 
-		const authenticatedURL = `https://${data.session?.accessToken}@github.com${new URL(cloneURL).pathname}`;
-
 		await fetch('/new', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({ cloneURL: authenticatedURL })
+			body: JSON.stringify({ cloneURL, name: selectedRepoName })
 		});
 
 		creating = false;
