@@ -5,12 +5,14 @@ import GitHub from '@auth/sveltekit/providers/github';
 declare module '@auth/core/jwt' {
 	interface JWT {
 		accessToken?: string;
+		id?: number;
 	}
 }
 
 declare module '@auth/sveltekit' {
 	interface Session {
 		accessToken?: string;
+		id?: number;
 	}
 }
 
@@ -28,16 +30,16 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 	],
 	callbacks: {
 		jwt({ token, account }) {
-			if (account?.access_token) {
-				token.accessToken = account.access_token;
-			}
+			if (account?.access_token) token.accessToken = account.access_token;
+			if (account?.providerAccountId) token.id = parseInt(account.providerAccountId);
 			return token;
 		},
 
 		session({ session, token }) {
 			session.accessToken = token.accessToken;
+			session.id = token.id;
 			return session;
-		}
+		},
 	},
 	trustHost: true
 });

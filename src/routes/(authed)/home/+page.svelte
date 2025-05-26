@@ -1,24 +1,29 @@
 <script lang="ts">
+	import Button from '$lib/components/ui/button/button.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+
 	let { data } = $props();
 </script>
 
-<div>
-	<a href="/instance" class="rounded bg-green-700 p-2 text-white">Open instance</a>
-	<a href="/new" class="rounded bg-green-700 p-2 text-white">Create instance</a>
+<div class="m-8">
+	<div class="flex gap-4">
+		<h1 class="text-3xl">Workspaces</h1>
+
+		<Button variant={data.containers.length === 0 ? 'default' : 'outline'} href="/new">
+			<PlusIcon /> New Workspace
+		</Button>
+	</div>
+
+	{#each data.containers as container (container.Id)}
+		<div class="m-4">
+			<h2 class="text-xl font-bold">{container.Names}</h2>
+			<p>Image: {container.Image}</p>
+			<p>Status: {container.Status}</p>
+			<Button>Open Workspace</Button>
+		</div>
+	{/each}
+
+	{#if data.containers.length === 0}
+		<p>Looks like you don't have any workspaces.</p>
+	{/if}
 </div>
-
-{#each data.containers as container (container.Id)}
-	<div class="m-4">
-		<h2 class="text-xl font-bold">{container.Names}</h2>
-		<p>Image: {container.Image}</p>
-		<p>Status: {container.Status}</p>
-	</div>
-{/each}
-
-{#each data.repos as repo (repo.id)}
-	<div class="m-4">
-		<h2 class="text-xl font-bold">{repo.name}</h2>
-		<p>Description: {repo.description}</p>
-		<p>{repo.private ? 'Private' : 'Public'}</p>
-	</div>
-{/each}

@@ -37,7 +37,7 @@ console.log('Creating container');
 
 const container = await docker.createContainer({
 	Image: serverImage,
-	name: `openvscode-server-${id}`,
+	name: `annex-code-server-${id}`,
 	Env: ['CODE_ARGS=--server-base-path /instance'],
 	HostConfig: {
 		Mounts: [

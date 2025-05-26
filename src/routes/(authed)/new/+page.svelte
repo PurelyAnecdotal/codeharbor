@@ -1,0 +1,112 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import Button from '$lib/components/ui/button/button.svelte';
+	import * as Command from '$lib/components/ui/command';
+	import * as Popover from '$lib/components/ui/popover';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import GithubIcon from '@lucide/svelte/icons/github';
+	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
+	import { tick } from 'svelte';
+
+	const { data } = $props();
+
+	let repoPickerOpen = $state(false);
+	let triggerRef = $state<HTMLButtonElement>(null!);
+	let creating = $state(false);
+
+	let selectedRepoID: number | undefined = $state();
+	let selectedRepoName = $derived(data.repos.find((r) => r.id === selectedRepoID)?.name);
+
+	function closeAndFocusTrigger() {
+		repoPickerOpen = false;
+		tick().then(() => {
+			triggerRef.focus();
+		});
+	}
+
+	async function create() {
+		const cloneURL = data.repos.find((r) => r.id === selectedRepoID)?.clone_url;
+
+		if (!selectedRepoID || !cloneURL || creating) return;
+
+		creating = true;
+
+		const authenticatedURL = `https://${data.session?.accessToken}@github.com${new URL(cloneURL).pathname}`;
+
+		await fetch('/new', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ cloneURL: authenticatedURL })
+		});
+
+		creating = false;
+
+		goto('/home');
+	}
+</script>
+
+<h1 class="text-3xl mb-4">Create a new workspace</h1>
+
+<h2 class="text-xl mb-4">Template</h2>
+
+<p class="mb-4">Select from your repositories</p>
+
+{data.session?.user?.id}
+
+<Popover.Root bind:open={repoPickerOpen}>
+	<Popover.Trigger bind:ref={triggerRef}>
+		{#snippet child({ props })}
+			<Button
+				variant="outline"
+				class="w-[200px] justify-between"
+				{...props}
+				role="combobox"
+				aria-expanded={repoPickerOpen}
+			>
+				<GithubIcon />
+				{selectedRepoName ?? 'Select a repo...'}
+				<ChevronsUpDownIcon class="opacity-50" />
+			</Button>
+		{/snippet}
+	</Popover.Trigger>
+
+	<Popover.Content class="w-[200px] p-0">
+		<Command.Root>
+			<Command.Input placeholder="Search repos..." />
+			<Command.List>
+				<Command.Empty>No repo found.</Command.Empty>
+				<Command.Group value="frameworks">
+					{#each data.repos as { name, id, owner, full_name } (id)}
+						<Command.Item
+							value={full_name}
+							onSelect={() => {
+								selectedRepoID = id;
+								closeAndFocusTrigger();
+							}}
+						>
+							<CheckIcon class={selectedRepoID === id ? '' : 'text-transparent'} />
+							{#if owner.id === page.data.session?.id}
+								{name}
+							{:else}
+								{owner.login}/{name}
+							{/if}
+						</Command.Item>
+					{/each}
+				</Command.Group>
+			</Command.List>
+		</Command.Root>
+	</Popover.Content>
+</Popover.Root>
+
+<div class="mt-4">
+	<Button onclick={create} disabled={creating}>
+		{#if creating}
+			<LoaderCircleIcon class="animate-spin" />
+		{/if}
+		Create
+	</Button>
+</div>

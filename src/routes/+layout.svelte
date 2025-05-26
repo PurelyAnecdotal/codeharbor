@@ -1,14 +1,15 @@
 <script lang="ts">
-	import { ModeWatcher } from 'mode-watcher';
-	import '../app.css';
-	import GitHub from '@lucide/svelte/icons/github';
-	import CircleUser from '@lucide/svelte/icons/circle-user';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import { page } from '$app/state';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
-	import { signIn, signOut } from '@auth/sveltekit/client';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { signIn, signOut } from '@auth/sveltekit/client';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import CircleUser from '@lucide/svelte/icons/circle-user';
+	import GitHub from '@lucide/svelte/icons/github';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
+	import { ModeWatcher } from 'mode-watcher';
+
+	import '../app.css';
 
 	let { children } = $props();
 </script>
@@ -16,7 +17,8 @@
 <ModeWatcher />
 
 <div class="m-4 flex justify-between">
-	Annex
+	<a href="/">Annex</a>
+
 	{#if page.data.session}
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger class={buttonVariants({ variant: 'ghost' })}>
@@ -42,5 +44,6 @@
 	{/if}
 </div>
 
-
-{@render children()}
+<div class="m-8">
+	{@render children()}
+</div>
