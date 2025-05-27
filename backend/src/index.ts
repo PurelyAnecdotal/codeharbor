@@ -31,7 +31,7 @@ app.use(
 // 	return c.json(auth);
 // });
 
-app.get('/', (c) => c.text('Hono!'));
+// app.get('/', (c) => c.text('Hono!'));
 
 const originServer = '172.17.0.2:3000';
 
@@ -69,6 +69,8 @@ app.get(
 );
 
 app.get('/instance/*', (c) => proxy(`http://${originServer}/${c.req.path}`));
+
+app.get('/*', (c) => proxy(`http://localhost:5173/${c.req.path}`));
 
 export default {
 	fetch: app.fetch,

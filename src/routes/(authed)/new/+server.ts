@@ -22,8 +22,7 @@ export async function POST({ request, locals }) {
 		return new Response('Invalid clone url', { status: 400 });
 	}
 
-	const id = Math.random().toString(36).substring(2, 15);
-	// const id = crypto.randomUUID();
+	const id = crypto.randomUUID();
 
 	const authenticatedURL = `https://${session.accessToken}@github.com${new URL(cloneURL).pathname}`;
 
