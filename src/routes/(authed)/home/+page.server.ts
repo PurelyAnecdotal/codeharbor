@@ -1,3 +1,4 @@
+import { requireLogin } from '$lib/auth.js';
 import { db } from '$lib/server/db';
 import { workspaces } from '$lib/server/db/schema';
 import { docker } from '$lib/server/docker.js';
@@ -12,7 +13,7 @@ interface DBWorkspace {
 	repoURL: string;
 }
 
-type ContainerState =
+export type ContainerState =
 	| 'created'
 	| 'running'
 	| 'paused'
@@ -21,22 +22,18 @@ type ContainerState =
 	| 'removing'
 	| 'dead';
 
-interface WorkspaceContainer extends DBWorkspace {
+export interface WorkspaceContainer extends DBWorkspace {
 	url?: string;
 	state: ContainerState;
 }
 
-export async function load({ locals }) {
-	const session = await locals.auth();
-
-	if (!session || !session.id) {
-		return { workspaces: [] };
-	}
+export async function load() {
+	const session = await requireLogin();
 
 	const userWorkspaces: DBWorkspace[] = await db
 		.select()
 		.from(workspaces)
-		.where(eq(workspaces.ownerId, session.id));
+		.where(eq(workspaces.ownerId, session.id!));
 
 	const containersInfo = await docker.listContainers({ all: true });
 
@@ -66,7 +63,10 @@ async function getContainer(
 
 	const bridgeIP = containerInfo.NetworkSettings.Networks['bridge'].IPAddress;
 
-	const accessUrl = bridgeIP ? `http://${bridgeIP}:3000/?folder=/config/workspace` : undefined;
+	const accessUrl =
+		bridgeIP && containerInfo.State === 'running'
+			? `http://${bridgeIP}:3000/?folder=/config/workspace`
+			: undefined;
 
 	return {
 		...workspace,

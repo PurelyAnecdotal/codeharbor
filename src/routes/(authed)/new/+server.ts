@@ -4,7 +4,7 @@ import { docker } from '$lib/server/docker.js';
 
 const gitImage = 'cgr.dev/chainguard/git';
 
-const serverImage = 'ghcr.io/linuxserver/openvscode-server:latest';
+// const serverImage = 'ghcr.io/linuxserver/openvscode-server:latest';
 
 export async function POST({ request, locals }) {
 	const session = await locals.auth();
@@ -38,7 +38,12 @@ export async function POST({ request, locals }) {
 				}
 			]
 		},
-		Entrypoint: ['/usr/bin/git', 'clone', authenticatedURL, '/home/git']
+		Entrypoint: [
+			'/bin/sh',
+			'-c',
+			`exec /usr/bin/git clone ${authenticatedURL} /home/git && chown 1000:1000 /home/git`,
+			'--'
+		]
 	});
 
 	await git.start();
@@ -50,7 +55,7 @@ export async function POST({ request, locals }) {
 	console.log('Creating container');
 
 	const container = await docker.createContainer({
-		Image: serverImage,
+		Image: 'mcr.microsoft.com/devcontainers/base',
 		name: `annex-code-server-${id}`,
 		Env: ['CODE_ARGS=--server-base-path /instance'],
 		HostConfig: {
@@ -58,10 +63,23 @@ export async function POST({ request, locals }) {
 				{
 					Type: 'volume',
 					Source: `annex-${id}`,
-					Target: '/config/workspace'
+					Target: '/config/workspace',
+				},
+				{
+					Type: 'bind',
+					Source: '/var/home/user/Downloads/openvscode-server-v1.99.3-linux-x64',
+					Target: '/openvscode-server',
+					ReadOnly: true
 				}
 			]
-		}
+		},
+		Entrypoint: [
+			'/bin/sh',
+			'-c',
+			'exec /openvscode-server/bin/openvscode-server --host 0.0.0.0 --without-connection-token',
+			'--'
+		],
+		// User: 'vscode'
 	});
 
 	await db.insert(workspaces).values({

@@ -1,6 +1,8 @@
+import { getRequestEvent } from '$app/server';
 import { AUTH_GITHUB_ID, AUTH_GTIHUB_SECRET } from '$env/static/private';
 import { SvelteKitAuth } from '@auth/sveltekit';
 import GitHub from '@auth/sveltekit/providers/github';
+import { redirect } from '@sveltejs/kit';
 
 declare module '@auth/core/jwt' {
 	interface JWT {
@@ -39,7 +41,17 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 			session.accessToken = token.accessToken;
 			session.id = token.id;
 			return session;
-		},
+		}
 	},
 	trustHost: true
 });
+
+export async function requireLogin() {
+	const { locals } = getRequestEvent();
+
+	const session = await locals.auth();
+
+	if (!session?.id) redirect(307, '/');
+
+	return session;
+}
