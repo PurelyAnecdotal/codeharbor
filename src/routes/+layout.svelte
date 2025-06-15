@@ -8,6 +8,7 @@
 	import GitHub from '@lucide/svelte/icons/github';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import { ModeWatcher } from 'mode-watcher';
+	import DiamondIcon from '@lucide/svelte/icons/diamond';
 
 	import '../app.css';
 
@@ -16,34 +17,40 @@
 
 <ModeWatcher />
 
-<div class="m-4 flex justify-between">
-	<a href="/">Annex</a>
+<div class="flex h-screen flex-col">
+	<div class="m-4 flex justify-between">
+		<a href="/" class="flex items-center">
+			<DiamondIcon class="h-4" />
+			Annex</a
+		>
 
-	{#if page.data.session}
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger class={buttonVariants({ variant: 'ghost' })}>
-				{#if page.data.session.user?.image}
-					<img src={page.data.session.user.image} alt="User Avatar" class="h-4 w-4 rounded-full" />
-				{:else}
-					<CircleUser />
-				{/if}
-				{page.data.session.user?.name}
-				<ChevronDown />
-			</DropdownMenu.Trigger>
+		{#if page.data.session}
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger class={buttonVariants({ variant: 'ghost' })}>
+					{#if page.data.session.user?.image}
+						<img
+							src={page.data.session.user.image}
+							alt="User Avatar"
+							class="h-4 w-4 rounded-full"
+						/>
+					{:else}
+						<CircleUser />
+					{/if}
+					{page.data.session.user?.name}
+					<ChevronDown />
+				</DropdownMenu.Trigger>
 
-			<DropdownMenu.Content class="w-56">
-				<DropdownMenu.Item onclick={() => signOut()}>
-					<LogOutIcon />Log out
-				</DropdownMenu.Item>
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
-	{:else}
-		<Button onclick={() => signIn('github')}>
-			<GitHub />Log in
-		</Button>
-	{/if}
-</div>
-
-<div class="m-8">
+				<DropdownMenu.Content class="w-56">
+					<DropdownMenu.Item onclick={() => signOut()}>
+						<LogOutIcon />Log out
+					</DropdownMenu.Item>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		{:else}
+			<Button onclick={() => signIn('github')}>
+				<GitHub />Log in
+			</Button>
+		{/if}
+	</div>
 	{@render children()}
 </div>

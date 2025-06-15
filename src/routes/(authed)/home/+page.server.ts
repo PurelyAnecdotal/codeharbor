@@ -11,6 +11,7 @@ interface DBWorkspace {
 	ownerId: number;
 	dockerId: string;
 	repoURL: string;
+	folder: string;
 }
 
 export type ContainerState =
@@ -52,7 +53,7 @@ async function getContainer(
 	workspace: DBWorkspace,
 	containersInfo: ContainerInfo[]
 ): Promise<WorkspaceContainer> {
-	const { dockerId, uuid } = workspace;
+	const { dockerId, uuid, folder } = workspace;
 
 	const containerInfo = containersInfo.find((c) => c.Id === dockerId);
 
@@ -65,7 +66,7 @@ async function getContainer(
 
 	const accessUrl =
 		bridgeIP && containerInfo.State === 'running'
-			? `http://${bridgeIP}:3000/?folder=/config/workspace`
+			? `http://${bridgeIP}:3000/?folder=${folder}`
 			: undefined;
 
 	return {

@@ -72,9 +72,11 @@
 				{/if}
 			</Badge>
 		</Card.Title>
-		<Card.Description class="flex items-center gap-1">
-			<GithubIcon class="w-4" />
-			{workspace.repoURL}
+		<Card.Description>
+			<a href={workspace.repoURL} target="_blank" class="flex items-center gap-1">
+				<GithubIcon class="w-4" />
+				{new URL(workspace.repoURL).pathname.replace(/^\//, '').replace(/\.git$/, '')}
+			</a>
 		</Card.Description>
 	</Card.Header>
 	<Card.Footer class="flex gap-2">

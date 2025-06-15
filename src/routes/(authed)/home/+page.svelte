@@ -6,7 +6,7 @@
 	let { data } = $props();
 </script>
 
-<div class="m-8 space-y-4">
+<div class="space-y-4">
 	<div class="flex gap-4">
 		<h1 class="text-3xl">Workspaces</h1>
 

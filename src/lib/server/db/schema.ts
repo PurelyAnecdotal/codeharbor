@@ -5,5 +5,6 @@ export const workspaces = sqliteTable('workspace', {
 	name: text('name').notNull(),
 	ownerId: integer('owner_id').notNull(),
 	dockerId: text('docker_id', { length: 64 }).notNull().unique(),
-	repoURL: text('repo_url', { length: 256 }).notNull(),
+	repoURL: text('repo_url').notNull(),
+	folder: text('folder').notNull()
 });

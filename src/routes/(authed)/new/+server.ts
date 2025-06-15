@@ -1,30 +1,40 @@
+import { OPENVSCODE_SERVER_MOUNT_PATH } from '$env/static/private';
 import { db } from '$lib/server/db/index.js';
 import { workspaces } from '$lib/server/db/schema.js';
 import { docker } from '$lib/server/docker.js';
+import { friendlyWords } from 'friendlier-words';
 
 const gitImage = 'cgr.dev/chainguard/git';
 
-// const serverImage = 'ghcr.io/linuxserver/openvscode-server:latest';
-
 export async function POST({ request, locals }) {
+	if (OPENVSCODE_SERVER_MOUNT_PATH === undefined || OPENVSCODE_SERVER_MOUNT_PATH === '')
+		return new Response('OPENVSCODE_SERVER_MOUNT_PATH is not set', { status: 500 });
+
 	const session = await locals.auth();
 
-	if (!session || !session.id || !session.accessToken) {
+	if (!session || !session.id || !session.accessToken)
 		return new Response('Unauthorized', { status: 401 });
-	}
 
-	const { cloneURL, name } = await request.json();
+	const { cloneURL } = await request.json();
 
+	let cloneURLObject: URL;
 	try {
-		const url = new URL(cloneURL);
-		if (url.protocol !== 'https:') throw new Error('Invalid protocol');
+		cloneURLObject = new URL(cloneURL);
+		if (cloneURLObject.protocol !== 'https:') throw new Error('Invalid protocol');
 	} catch {
 		return new Response('Invalid clone url', { status: 400 });
 	}
 
 	const id = crypto.randomUUID();
 
-	const authenticatedURL = `https://${session.accessToken}@github.com${new URL(cloneURL).pathname}`;
+	const authenticatedURL = `https://${session.accessToken}@github.com${cloneURLObject.pathname}`;
+	const repoName =
+		cloneURLObject.pathname
+			.split('/')
+			.pop()
+			?.replace(/\.git$/, '') ?? 'repository';
+
+	console.log(`Cloning repository ${repoName} from ${cloneURL}`);
 
 	const git = await docker.createContainer({
 		Image: gitImage,
@@ -38,36 +48,37 @@ export async function POST({ request, locals }) {
 				}
 			]
 		},
-		Entrypoint: [
-			'/bin/sh',
-			'-c',
-			`exec /usr/bin/git clone ${authenticatedURL} /home/git && chown 1000:1000 /home/git`,
-			'--'
-		]
+		Entrypoint: ['/bin/sh', '-c', `exec /usr/bin/git clone ${authenticatedURL} /home/git`, '--']
 	});
-
 	await git.start();
-
 	await git.wait();
+	const gitInspect = await git.inspect();
+
+	if (gitInspect.State?.ExitCode !== 0) {
+		console.error(`Git clone failed with exit code ${gitInspect.State?.ExitCode}`);
+		return new Response('Failed to clone repository', { status: 500 });
+	}
 
 	git.remove();
 
-	console.log('Creating container');
+	console.log(`Creating container`);
+
+	const workspaceVolumeMountDir = `/config/workspace/${repoName}`;
 
 	const container = await docker.createContainer({
 		Image: 'mcr.microsoft.com/devcontainers/base',
 		name: `annex-code-server-${id}`,
-		Env: ['CODE_ARGS=--server-base-path /instance'],
+		// Env: ['CODE_ARGS=--server-base-path /instance'],
 		HostConfig: {
 			Mounts: [
 				{
 					Type: 'volume',
 					Source: `annex-${id}`,
-					Target: '/config/workspace',
+					Target: workspaceVolumeMountDir
 				},
 				{
 					Type: 'bind',
-					Source: '/var/home/user/Downloads/openvscode-server-v1.99.3-linux-x64',
+					Source: OPENVSCODE_SERVER_MOUNT_PATH,
 					Target: '/openvscode-server',
 					ReadOnly: true
 				}
@@ -78,27 +89,20 @@ export async function POST({ request, locals }) {
 			'-c',
 			'exec /openvscode-server/bin/openvscode-server --host 0.0.0.0 --without-connection-token',
 			'--'
-		],
+		]
 		// User: 'vscode'
 	});
 
 	await db.insert(workspaces).values({
 		uuid: id,
-		name: name,
+		name: friendlyWords(),
 		ownerId: session.id,
 		dockerId: container.id,
-		repoURL: cloneURL
+		repoURL: cloneURL,
+		folder: workspaceVolumeMountDir
 	});
 
-	console.log('Starting container');
-
 	await container.start();
-
-	const info = await container.inspect();
-
-	console.log(
-		`http://${info.NetworkSettings.Networks['bridge'].IPAddress}:3000/?folder=/config/workspace`
-	);
 
 	return new Response('Container created successfully', { status: 200 });
 }

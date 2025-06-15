@@ -33,23 +33,23 @@
 
 		creating = true;
 
-		await fetch('/new', {
+		const res = await fetch('/new', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({ cloneURL, name: selectedRepoName })
+			body: JSON.stringify({ cloneURL })
 		});
 
 		creating = false;
 
-		goto('/home');
+		if (res.ok) goto('/home');
 	}
 </script>
 
-<h1 class="text-3xl mb-4">Create a new workspace</h1>
+<h1 class="mb-4 text-3xl">Create a new workspace</h1>
 
-<h2 class="text-xl mb-4">Template</h2>
+<h2 class="mb-4 text-xl">Template</h2>
 
 <p class="mb-4">Select from your repositories</p>
 
