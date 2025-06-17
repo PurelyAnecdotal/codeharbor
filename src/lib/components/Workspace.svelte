@@ -2,6 +2,7 @@
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
+	import { safeFetch } from '$lib/fetch';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
 	import GithubIcon from '@lucide/svelte/icons/github';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
@@ -14,6 +15,7 @@
 	import RotateCCWIcon from '@lucide/svelte/icons/rotate-ccw';
 	import ScreenShareIcon from '@lucide/svelte/icons/screen-share';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import { toast } from 'svelte-sonner';
 	import type { WorkspaceContainer } from '../../routes/(authed)/home/+page.server';
 
 	interface Props {
@@ -28,23 +30,50 @@
 
 	async function startWorkspace(uuid: string) {
 		starting = true;
-		await fetch(`/workspace/${uuid}/start`, { method: 'POST' });
+
+		const res = await safeFetch(`/workspace/${uuid}/start`, { method: 'POST' });
+
 		starting = false;
-		location.reload();
+
+		res.match(
+			async (resp) => {
+				if (resp.ok) location.reload();
+				else toast.error('Failed to start workspace', { description: await resp.text() });
+			},
+			(err) => toast.error('Failed to start workspace', { description: err.message })
+		);
 	}
 
 	async function stopWorkspace(uuid: string) {
 		stopping = true;
-		await fetch(`/workspace/${uuid}/stop`, { method: 'POST' });
+
+		const res = await safeFetch(`/workspace/${uuid}/stop`, { method: 'POST' });
+
 		stopping = false;
-		location.reload();
+
+		res.match(
+			async (resp) => {
+				if (resp.ok) location.reload();
+				else toast.error('Failed to stop workspace', { description: await resp.text() });
+			},
+			(err) => toast.error('Failed to stop workspace', { description: err.message })
+		);
 	}
 
 	async function deleteWorkspace(uuid: string) {
 		deleting = true;
-		await fetch(`/workspace/${uuid}`, { method: 'DELETE' });
+
+		const res = await safeFetch(`/workspace/${uuid}`, { method: 'DELETE' });
+
 		deleting = false;
-		location.reload();
+
+		res.match(
+			async (resp) => {
+				if (resp.ok) location.reload();
+				else toast.error('Failed to delete workspace', { description: await resp.text() });
+			},
+			(err) => toast.error('Failed to delete workspace', { description: err.message })
+		);
 	}
 </script>
 

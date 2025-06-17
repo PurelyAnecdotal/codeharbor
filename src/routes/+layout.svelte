@@ -11,11 +11,14 @@
 	import DiamondIcon from '@lucide/svelte/icons/diamond';
 
 	import '../app.css';
+	import { Toaster } from 'svelte-sonner';
 
 	let { children } = $props();
 </script>
 
 <ModeWatcher />
+
+<Toaster />
 
 <div class="flex h-screen flex-col">
 	<div class="m-4 flex justify-between">
