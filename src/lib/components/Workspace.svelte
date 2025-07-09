@@ -1,8 +1,11 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
-	import Button from '$lib/components/ui/button/button.svelte';
+	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { safeFetch } from '$lib/fetch';
+	import type { WorkspaceContainerInfo } from '$lib/types';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
 	import GithubIcon from '@lucide/svelte/icons/github';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
@@ -16,10 +19,9 @@
 	import ScreenShareIcon from '@lucide/svelte/icons/screen-share';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { toast } from 'svelte-sonner';
-	import type { WorkspaceContainer } from '../../routes/(authed)/home/+page.server';
 
 	interface Props {
-		workspace: WorkspaceContainer;
+		workspace: WorkspaceContainerInfo;
 	}
 
 	const { workspace }: Props = $props();
@@ -107,7 +109,19 @@
 				{new URL(workspace.repoURL).pathname.replace(/^\//, '').replace(/\.git$/, '')}
 			</a>
 		</Card.Description>
+		{#if workspace.ownerId !== page.data.session?.id}
+			<Badge variant="secondary">
+				{#if workspace.ownerLogin}
+					Shared with you by {workspace.ownerName} ({workspace.ownerLogin})
+				{:else if workspace.ownerName}
+					Shared with you by {workspace.ownerName}
+				{:else}
+					Shared with you
+				{/if}
+			</Badge>
+		{/if}
 	</Card.Header>
+	
 	<Card.Footer class="flex gap-2">
 		{#if workspace.url}
 			<Button href={workspace.url} target="_blank">
@@ -134,13 +148,29 @@
 		{/if}
 
 		{#if workspace.state !== 'removing' && workspace.state !== 'running'}
-			<Button onclick={() => deleteWorkspace(workspace.uuid)} variant="outline" disabled={deleting}>
-				<OctagonMinusIcon />
-				Delete
-				{#if deleting}
-					<LoaderCircleIcon class="animate-spin" />
-				{/if}
-			</Button>
+			<AlertDialog.Root>
+				<AlertDialog.Trigger class={buttonVariants({ variant: 'outline' })} disabled={deleting}>
+					<OctagonMinusIcon />
+					Delete
+					{#if deleting}
+						<LoaderCircleIcon class="animate-spin" />
+					{/if}
+				</AlertDialog.Trigger>
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>Are you sure?</AlertDialog.Title>
+						<AlertDialog.Description>
+							This action cannot be undone. This will permanently delete this workspace.
+						</AlertDialog.Description>
+					</AlertDialog.Header>
+					<AlertDialog.Footer>
+						<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+						<AlertDialog.Action onclick={() => deleteWorkspace(workspace.uuid)}>
+							Continue
+						</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			</AlertDialog.Root>
 		{/if}
 	</Card.Footer>
 </Card.Root>

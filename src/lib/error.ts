@@ -1,35 +1,36 @@
-import type { Result } from 'neverthrow';
+const errorMessages = {
+	UnknownError: 'An unknown error occurred',
+	DBError: 'Error contacting database',
+	DockerodeError: 'Error communicating with Docker',
+	ContainerNotFoundError: 'Container not found',
+	ContainerNotRunningError: 'Container is not running',
+	BridgeNetworkNotFoundError: 'Bridge network not found',
+	OctokitError: 'Error communicating with GitHub'
+} as const;
+export type ErrorTypes = keyof typeof errorMessages;
 
-export interface DBError extends Error {}
-
-export interface DockerodeError2 {
-	statusCode: number;
-	json: {
-		message: string;
-	};
+export interface Tagged<Tag extends ErrorTypes> {
+	readonly _tag: Tag;
+	readonly message: (typeof errorMessages)[Tag];
+	readonly cause?: unknown;
 }
 
-export interface DockerodeError extends Error {
-	code: string;
-	path: string;
-	errno: number;
-}
-
-interface MaskedError {
-	_tag: 'MaskedError';
-	message: string;
-}
-
-export const MaskedError = (message: string): MaskedError => ({
-	_tag: 'MaskedError',
-	message
+export const tagged = <Tag extends ErrorTypes>(tag: Tag, cause?: unknown): Tagged<Tag> => ({
+	_tag: tag,
+	message: errorMessages[tag],
+	cause: cause
 });
 
-export const maskResult = <T, E>(result: Result<T, E>) =>
-	result.mapErr((err) => {
-		console.error('Caught: ', err);
-		return MaskedError('Something went wrong');
-	});
+export const isTagged = <Tag extends ErrorTypes>(error: unknown): error is Tagged<Tag> =>
+	typeof error === 'object' &&
+	error !== null &&
+	'_tag' in error &&
+	typeof error._tag === 'string' &&
+	error._tag in errorMessages &&
+	'message' in error &&
+	typeof error.message === 'string';
 
-export const isMaskedError = (error: unknown): error is MaskedError =>
-	error !== null && typeof error === 'object' && '_tag' in error && error._tag === 'MaskedError';
+export const hideCause = <Tag extends ErrorTypes>(taggedError: Tagged<Tag>): Tagged<Tag> => ({
+	_tag: taggedError._tag,
+	message: taggedError.message
+});

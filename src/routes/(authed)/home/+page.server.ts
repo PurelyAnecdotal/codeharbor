@@ -1,109 +1,126 @@
 import { requireLogin } from '$lib/auth.js';
-import { maskResult, type DBError, type DockerodeError } from '$lib/error';
+import { tagged, type Tagged } from '$lib/error';
+import { getGitHubUsername } from '$lib/octokit';
+import { getOkResultAsyncs, wrapUndefined } from '$lib/result';
 import { db } from '$lib/server/db';
 import { workspaces } from '$lib/server/db/schema';
 import { docker } from '$lib/server/docker.js';
+import type { ContainerState, WorkspaceContainerInfo, WorkspaceDBEntry } from '$lib/types';
+import type Dockerode from 'dockerode';
 import type { ContainerInfo } from 'dockerode';
-import { eq } from 'drizzle-orm';
-import { err, ok, Result, ResultAsync } from 'neverthrow';
-
-export type ContainerState =
-	| 'created'
-	| 'running'
-	| 'paused'
-	| 'restarting'
-	| 'exited'
-	| 'removing'
-	| 'dead';
-
-interface WorkspaceDBEntry {
-	uuid: string;
-	name: string;
-	ownerId: number;
-	dockerId: string;
-	repoURL: string;
-	folder: string;
-}
-
-export interface WorkspaceContainer extends WorkspaceDBEntry {
-	url?: string;
-	state: ContainerState;
-}
+import { eq, or, sql } from 'drizzle-orm';
+import { err, errAsync, ok, okAsync, Result, ResultAsync } from 'neverthrow';
 
 export async function load() {
 	const session = await requireLogin();
 
-	return { workspaces: maskResult(await getUserWorkspaces(session.id!)) };
+	return { workspaces: await getWorkspaces(session.id!, session.accessToken!) };
 }
 
-const getUserDBWorkspaces = (id: number) =>
+const getWorkspaceDBEntries = (
+	userId: number
+): ResultAsync<WorkspaceDBEntry[], Tagged<'DBError'>> =>
 	ResultAsync.fromPromise(
-		db.select().from(workspaces).where(eq(workspaces.ownerId, id!)),
-		(err) => err as DBError
+		db
+			.select()
+			.from(workspaces)
+			.where(
+				or(
+					eq(workspaces.ownerId, userId),
+					sql`EXISTS (
+							SELECT 1 FROM json_each(${workspaces.sharedIds}) 
+							WHERE value = ${userId}
+						)`
+				)
+			),
+		(err) => tagged('DBError', err)
 	);
 
 const getContainersList = () =>
-	ResultAsync.fromPromise(docker.listContainers({ all: true }), (err) => err as DockerodeError);
+	ResultAsync.fromPromise(docker.listContainers({ all: true }), (err) =>
+		tagged('DockerodeError', err)
+	);
 
-const getUserWorkspaces = (id: number) =>
-	getUserDBWorkspaces(id).andThen((dbWorkspaces) =>
-		getContainersList().map((containersList) =>
-			dbWorkspaces
-				.map((workspace) => getContainer(workspace, containersList))
-				.filter((result) => result.isOk())
-				.map((result) => result.value)
+const getWorkspaces = (userId: number, accessToken: string) =>
+	getWorkspaceDBEntries(userId).andThen((dbWorkspaces) =>
+		getContainersList().andThen((containersList) =>
+			getOkResultAsyncs(
+				dbWorkspaces.map((workspace) =>
+					getWorkspaceContainerInfo(workspace, containersList, accessToken)
+				)
+			)
 		)
 	);
 
-interface ContainerNotFoundError {
-	message: 'Container not found';
-}
-
-interface ContainerNotRunningError {
-	message: 'Container is not running';
-}
-
-interface BridgeNetworkNotFoundError {
-	message: 'Bridge network not found';
-}
-
-function getContainer(
+function getWorkspaceContainerInfo(
 	workspaceDBEntry: WorkspaceDBEntry,
-	containersInfo: ContainerInfo[]
-): Result<
-	WorkspaceContainer,
-	ContainerNotFoundError | ContainerNotRunningError | BridgeNetworkNotFoundError
-> {
+	containersInfo: ContainerInfo[],
+	accessToken: string
+): ResultAsync<WorkspaceContainerInfo, Tagged<'ContainerNotFoundError'>> {
 	const { dockerId, uuid, folder } = workspaceDBEntry;
 
 	const containerInfo = containersInfo.find((c) => c.Id === dockerId);
 
 	if (!containerInfo) {
-		console.error(`Container ${dockerId} not found; removing workspace ${uuid} from database.`);
+		console.warn(`Container ${dockerId} not found; removing workspace ${uuid} from database.`);
 
-		ResultAsync.fromPromise(
-			db.delete(workspaces).where(eq(workspaces.uuid, uuid)),
-			(err) => err as DBError
+		ResultAsync.fromPromise(db.delete(workspaces).where(eq(workspaces.uuid, uuid)), (err) =>
+			tagged('DBError', err)
 		).orTee((err) => console.error('Failed to remove workspace ${uuid} from database: ', err));
 
-		const error: ContainerNotFoundError = { message: 'Container not found' };
-		return err(error);
+		return errAsync(tagged('ContainerNotFoundError'));
 	}
 
 	const state = containerInfo.State as ContainerState;
 
-	const workspaceContainer: WorkspaceContainer = { ...workspaceDBEntry, state };
+	const runningResult: Result<void, Tagged<'ContainerNotRunningError'>> = state === 'running'
+		? ok()
+		: err(tagged('ContainerNotRunningError'));
 
-	if (state !== 'running') return ok(workspaceContainer);
+	const url = runningResult
+		.andThen(() =>
+			wrapUndefined(
+				containerInfo.NetworkSettings.Networks['bridge'],
+				tagged('BridgeNetworkNotFoundError')
+			)
+		)
+		.map((network) => `http://${network.IPAddress}:3000/?folder=${folder}`)
+		.unwrapOr(undefined);
 
-	const bridge = containerInfo.NetworkSettings.Networks['bridge'];
+	return getGitHubUsername(workspaceDBEntry.ownerId, accessToken)
+		.map(({ name, login }) => ({
+			...workspaceDBEntry,
+			state,
+			url,
+			ownerName: name,
+			ownerLogin: login
+		}))
+		.orElse(() =>
+			okAsync({
+				...workspaceDBEntry,
+				state,
+				url
+			})
+		);
+}
 
-	if (!bridge) {
-		const error: BridgeNetworkNotFoundError = { message: 'Bridge network not found' };
-		return err(error);
-	}
+const getContainerStats = (dockerId: string) =>
+	ResultAsync.fromPromise(docker.getContainer(dockerId).stats({ stream: false }), (err) =>
+		tagged('DockerodeError', err)
+	);
 
-	workspaceContainer.url = `http://${bridge.IPAddress}:3000/?folder=${folder}`;
+function calculateContainerResourceUsage({
+	cpu_stats,
+	precpu_stats,
+	memory_stats
+}: Dockerode.ContainerStats) {
+	const cpuDelta = cpu_stats.cpu_usage.total_usage - precpu_stats.cpu_usage.total_usage;
+	const systemCpuDelta = cpu_stats.system_cpu_usage - precpu_stats.system_cpu_usage;
 
-	return ok(workspaceContainer);
+	const usedMemory = memory_stats.usage - memory_stats.stats.cache;
+
+	return {
+		cpuUsage: (cpuDelta / systemCpuDelta) * cpu_stats.online_cpus * 100,
+		memoryUsage: (usedMemory / memory_stats.limit) * 100
+	};
 }

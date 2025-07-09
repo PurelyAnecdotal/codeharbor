@@ -1,4 +1,4 @@
-import type { DBError, DockerodeError2 } from '$lib/error.js';
+import { tagged } from '$lib/error.js';
 import { db } from '$lib/server/db/index.js';
 import { workspaces } from '$lib/server/db/schema.js';
 import { docker } from '$lib/server/docker.js';
@@ -19,7 +19,7 @@ export async function POST({ locals, params }) {
 			})
 			.from(workspaces)
 			.where(eq(workspaces.uuid, params.uuid)),
-		(err) => err as DBError
+		(err) => tagged('DBError', err)
 	);
 
 	if (dbSelectResult.isErr()) return new Response('Database Error', { status: 500 });
@@ -35,7 +35,7 @@ export async function POST({ locals, params }) {
 
 	const dockerResult = await ResultAsync.fromPromise(
 		docker.getContainer(workspace.dockerId).stop(),
-		(err) => err as DockerodeError2
+		(err) => tagged('DockerodeError', err)
 	);
 
 	if (dockerResult.isErr()) {

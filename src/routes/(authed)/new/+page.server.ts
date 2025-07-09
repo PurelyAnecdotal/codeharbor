@@ -1,24 +1,19 @@
 import { requireLogin } from '$lib/auth';
-import { maskResult } from '$lib/error.js';
-import { RequestError } from '@octokit/request-error';
-import { Octokit } from '@octokit/rest';
-import { Result, ResultAsync } from 'neverthrow';
+import { hideCause, tagged } from '$lib/error';
+import { octokit } from '$lib/octokit';
+import { ResultAsync } from 'neverthrow';
 
 export async function load() {
 	const session = await requireLogin();
 
-	return { repos: maskResult(await getUserGitHubRepos(session.accessToken!)) };
+	return { repos: (await getUserGitHubRepos(session.accessToken!)).mapErr(hideCause) };
 }
 
 const getUserGitHubRepos = (accessToken: string) =>
-	Result.fromThrowable(
-		(...rest) => new Octokit(...rest),
-		(err) => err as RequestError
-	)({ auth: accessToken, userAgent: 'annex/0.0' })
+	octokit(accessToken)
 		.asyncAndThen((octokit) =>
-			ResultAsync.fromPromise(
-				octokit.rest.repos.listForAuthenticatedUser(),
-				(err) => err as RequestError
+			ResultAsync.fromPromise(octokit.rest.repos.listForAuthenticatedUser(), (err) =>
+				tagged('OctokitError', err)
 			)
 		)
 		.map((res) => res.data);

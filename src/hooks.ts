@@ -1,4 +1,4 @@
-import { isMaskedError, MaskedError } from '$lib/error';
+import { isTagged, tagged } from '$lib/error';
 import type { Transport } from '@sveltejs/kit';
 import { err, Err, ok, Ok } from 'neverthrow';
 
@@ -13,13 +13,25 @@ export const transport: Transport = {
 
 			const error: unknown = maybeErr.error;
 
-			if (!isMaskedError(error)) {
-				console.error('Attempted to encode an unmasked error:', error);
-				return 'Something went wrong';
+			if (!isTagged(error)) {
+				console.error('Attempted to encode an untagged error:', error);
+				return JSON.stringify(tagged('UnknownError'));
 			}
 
-			return error.message;
+			const { cause, ...rest } = error;
+
+			return JSON.stringify(rest);
 		},
-		decode: (value: string) => err(MaskedError(value))
+		decode: (value: string) => err(JSON.parse(value))
+	},
+	Tagged: {
+		encode: (maybeTagged: unknown): string | false => {
+			if (!isTagged(maybeTagged)) return false;
+
+			const { cause, ...rest } = maybeTagged;
+
+			return JSON.stringify(rest);
+		},
+		decode: (value: string) => JSON.parse(value)
 	}
 };

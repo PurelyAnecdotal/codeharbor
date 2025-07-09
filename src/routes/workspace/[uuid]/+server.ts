@@ -1,4 +1,4 @@
-import type { DBError, DockerodeError2 } from '$lib/error';
+import { tagged } from '$lib/error';
 import { db } from '$lib/server/db/index.js';
 import { workspaces } from '$lib/server/db/schema.js';
 import { docker } from '$lib/server/docker.js';
@@ -19,7 +19,7 @@ export async function DELETE({ locals, params }) {
 			})
 			.from(workspaces)
 			.where(eq(workspaces.uuid, params.uuid)),
-		(err) => err as DBError
+		(err) => tagged('DBError', err)
 	);
 
 	if (dbSelectResult.isErr()) return new Response('Database Error', { status: 500 });
@@ -35,7 +35,7 @@ export async function DELETE({ locals, params }) {
 
 	const dockerResult = await ResultAsync.fromPromise(
 		docker.getContainer(workspace.dockerId).remove(),
-		(err) => err as DockerodeError2
+		(err) => tagged('DockerodeError', err)
 	);
 
 	if (dockerResult.isErr()) {
@@ -45,7 +45,7 @@ export async function DELETE({ locals, params }) {
 
 	const dbDeleteResult = await ResultAsync.fromPromise(
 		db.delete(workspaces).where(eq(workspaces.uuid, params.uuid)),
-		(err) => err as DBError
+		(err) => tagged('DBError', err)
 	);
 
 	if (dbDeleteResult.isErr()) {
