@@ -1,12 +1,14 @@
-import { requireLogin } from '$lib/auth';
 import { hideCause, tagged } from '$lib/error';
 import { octokit } from '$lib/octokit';
+import { redirect } from '@sveltejs/kit';
 import { ResultAsync } from 'neverthrow';
 
-export async function load() {
-	const session = await requireLogin();
+export async function load({ locals}) {
+	const { user } = locals;
 
-	return { repos: (await getUserGitHubRepos(session.accessToken!)).mapErr(hideCause) };
+	if (!user) redirect(307, '/');
+
+	return { repos: (await getUserGitHubRepos(user.ghAccessToken)).mapErr(hideCause) };
 }
 
 const getUserGitHubRepos = (accessToken: string) =>

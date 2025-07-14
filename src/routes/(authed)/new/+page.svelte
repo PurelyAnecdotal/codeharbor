@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { workspaceCreate } from '$lib/api.js';
 	import * as Alert from '$lib/components/ui/alert';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Command from '$lib/components/ui/command';
@@ -10,6 +11,7 @@
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import GithubIcon from '@lucide/svelte/icons/github';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
+	import type { Result } from 'neverthrow';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -46,19 +48,27 @@
 		if (!selectedRepoID || !cloneURL || creating) return;
 
 		creating = true;
-
-		const res = await fetch('/new', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({ cloneURL })
-		});
-
+		const res = await workspaceCreate(cloneURL);
 		creating = false;
 
-		if (res.ok) goto('/home');
+		res.map((resp) => {
+			if (resp.ok) goto('/home');
+		});
+		handleWithToast(res, 'Failed to create workspace');
 	}
+
+	const handleWithToast = (
+		result: Result<Response, DOMException | TypeError>,
+		errorMessage: string,
+		successMessage?: string
+	) =>
+		result.match(
+			async (resp) => {
+				if (resp.ok && successMessage) toast.success(successMessage);
+				else toast.error(errorMessage, { description: await resp.text() });
+			},
+			(err) => toast.error(errorMessage, { description: err.message })
+		);
 </script>
 
 <h1 class="mb-4 text-3xl">Create a new workspace</h1>

@@ -1,5 +1,5 @@
-import { requireLogin } from '$lib/auth';
+import { redirect } from '@sveltejs/kit';
 
-export async function load() {
-	await requireLogin();
-}
+export const load = async ({ locals }) => {
+	if (!locals.user) return redirect(302, '/');
+};

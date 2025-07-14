@@ -2,18 +2,18 @@
 	import { page } from '$app/state';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { signIn, signOut } from '@auth/sveltekit/client';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
+	import DiamondIcon from '@lucide/svelte/icons/diamond';
 	import GitHub from '@lucide/svelte/icons/github';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import { ModeWatcher } from 'mode-watcher';
-	import DiamondIcon from '@lucide/svelte/icons/diamond';
-
-	import '../app.css';
 	import { Toaster } from 'svelte-sonner';
+	import '../app.css';
 
 	let { children } = $props();
+
+	const user = $derived(page.data.user);
 </script>
 
 <ModeWatcher />
@@ -24,33 +24,33 @@
 	<div class="m-4 flex justify-between">
 		<a href="/" class="flex items-center">
 			<DiamondIcon class="h-4" />
-			Annex</a
-		>
+			Annex
+		</a>
 
-		{#if page.data.session}
+		{#if user}
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger class={buttonVariants({ variant: 'ghost' })}>
-					{#if page.data.session.user?.image}
+					{#if user}
 						<img
-							src={page.data.session.user.image}
+							src="https://avatars.githubusercontent.com/{user.ghLogin}?s=32"
 							alt="User Avatar"
 							class="h-4 w-4 rounded-full"
 						/>
 					{:else}
 						<CircleUser />
 					{/if}
-					{page.data.session.user?.name}
+					{user.ghLogin}
 					<ChevronDown />
 				</DropdownMenu.Trigger>
 
 				<DropdownMenu.Content class="w-56">
-					<DropdownMenu.Item onclick={() => signOut()}>
+					<DropdownMenu.Item>
 						<LogOutIcon />Log out
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>
 		{:else}
-			<Button onclick={() => signIn('github')}>
+			<Button href="/login/github">
 				<GitHub />Log in
 			</Button>
 		{/if}

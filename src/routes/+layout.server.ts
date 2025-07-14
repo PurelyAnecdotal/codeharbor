@@ -1,5 +1,9 @@
-export const load = async (event) => {
-	const session = await event.locals.auth();
+export function load({ locals }) {
+	if (!locals.user) return;
 
-	return { session };
-};
+	const { ghLogin, ghName } = locals.user;
+
+	return {
+		user: { ghLogin, ghName }
+	};
+}

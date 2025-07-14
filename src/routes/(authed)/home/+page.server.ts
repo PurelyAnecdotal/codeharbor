@@ -1,49 +1,53 @@
-import { requireLogin } from '$lib/auth.js';
-import { tagged, type Tagged } from '$lib/error';
-import { getGitHubUsername } from '$lib/octokit';
+import { tagged, wrapDB, wrapDockerode, type Tagged } from '$lib/error';
+import { getGitHubUserInfo } from '$lib/octokit';
 import { getOkResultAsyncs, wrapUndefined } from '$lib/result';
 import { db } from '$lib/server/db';
-import { workspaces } from '$lib/server/db/schema';
+import { workspace } from '$lib/server/db/schema';
 import { docker } from '$lib/server/docker.js';
-import type { ContainerState, WorkspaceContainerInfo, WorkspaceDBEntry } from '$lib/types';
+import type {
+	ContainerState,
+	GitHubUserInfo,
+	Uuid,
+	WorkspaceContainerInfo,
+	WorkspaceDBEntry
+} from '$lib/types';
+import { redirect } from '@sveltejs/kit';
 import type Dockerode from 'dockerode';
 import type { ContainerInfo } from 'dockerode';
 import { eq, or, sql } from 'drizzle-orm';
-import { err, errAsync, ok, okAsync, Result, ResultAsync } from 'neverthrow';
+import { err, errAsync, ok, Result, ResultAsync } from 'neverthrow';
 
-export async function load() {
-	const session = await requireLogin();
+export async function load({ locals }) {
+	const { user } = locals;
 
-	return { workspaces: await getWorkspaces(session.id!, session.accessToken!) };
+	if (!user) redirect(307, '/');
+
+	return {
+		workspaces: (await getWorkspaces(user.uuid, user.ghAccessToken)).orTee(console.error)
+	};
 }
 
-const getWorkspaceDBEntries = (
-	userId: number
-): ResultAsync<WorkspaceDBEntry[], Tagged<'DBError'>> =>
-	ResultAsync.fromPromise(
+const getWorkspaceDBEntries = (userUuid: Uuid) =>
+	wrapDB(
 		db
 			.select()
-			.from(workspaces)
+			.from(workspace)
 			.where(
 				or(
-					eq(workspaces.ownerId, userId),
+					eq(workspace.ownerUuid, userUuid),
 					sql`EXISTS (
-							SELECT 1 FROM json_each(${workspaces.sharedIds}) 
-							WHERE value = ${userId}
+							SELECT 1 FROM json_each(${workspace.sharedUserUuids}) 
+							WHERE value = ${userUuid}
 						)`
 				)
-			),
-		(err) => tagged('DBError', err)
-	);
+			)
+	).map((res): WorkspaceDBEntry[] => res);
 
-const getContainersList = () =>
-	ResultAsync.fromPromise(docker.listContainers({ all: true }), (err) =>
-		tagged('DockerodeError', err)
-	);
+const getContainersList = () => wrapDockerode(docker.listContainers({ all: true }));
 
-const getWorkspaces = (userId: number, accessToken: string) =>
-	getWorkspaceDBEntries(userId).andThen((dbWorkspaces) =>
-		getContainersList().andThen((containersList) =>
+const getWorkspaces = (userUuid: Uuid, accessToken: string) =>
+	getWorkspaceDBEntries(userUuid).andThen((dbWorkspaces) =>
+		getContainersList().map((containersList) =>
 			getOkResultAsyncs(
 				dbWorkspaces.map((workspace) =>
 					getWorkspaceContainerInfo(workspace, containersList, accessToken)
@@ -64,7 +68,7 @@ function getWorkspaceContainerInfo(
 	if (!containerInfo) {
 		console.warn(`Container ${dockerId} not found; removing workspace ${uuid} from database.`);
 
-		ResultAsync.fromPromise(db.delete(workspaces).where(eq(workspaces.uuid, uuid)), (err) =>
+		ResultAsync.fromPromise(db.delete(workspace).where(eq(workspace.uuid, uuid)), (err) =>
 			tagged('DBError', err)
 		).orTee((err) => console.error('Failed to remove workspace ${uuid} from database: ', err));
 
@@ -87,21 +91,57 @@ function getWorkspaceContainerInfo(
 		.map((network) => `http://${network.IPAddress}:3000/?folder=${folder}`)
 		.unwrapOr(undefined);
 
-	return getGitHubUsername(workspaceDBEntry.ownerId, accessToken)
-		.map(({ name, login }) => ({
-			...workspaceDBEntry,
-			state,
-			url,
-			ownerName: name,
-			ownerLogin: login
-		}))
-		.orElse(() =>
-			okAsync({
-				...workspaceDBEntry,
-				state,
-				url
-			})
-		);
+	const sharedUsersInfoPromise = getGitHubUserNameInfos(
+		workspaceDBEntry.sharedUserUuids,
+		accessToken
+	);
+
+	const ownerInfoPromise = getGitHubUserInfo(workspaceDBEntry.ownerUuid, accessToken).unwrapOr(
+		undefined
+	);
+
+	return ResultAsync.fromSafePromise(
+		sharedUsersInfoPromise.then((sharedUsersInfo) =>
+			ownerInfoPromise.then(
+				(ownerInfo): WorkspaceContainerInfo => ({
+					...workspaceDBEntry,
+					state,
+					url,
+					sharedUsersInfo,
+					ownerInfo
+				})
+			)
+		)
+	);
+
+	// return ResultAsync.fromSafePromise(
+	// 	(async () =>
+	// 		({
+	// 			...workspaceDBEntry,
+	// 			state,
+	// 			url,
+	// 			sharedUsersInfo: await sharedUsersInfoPromise,
+	// 			ownerInfo: await ownerInfoPromise
+	// 		}) satisfies WorkspaceContainerInfo)()
+	// );
+}
+
+async function getGitHubUserNameInfos(userUuids: Uuid[], accessToken: string) {
+	return new Map(
+		(
+			await Promise.all(
+				userUuids
+					.map(
+						(userUuid) =>
+							[userUuid, getGitHubUserInfo(userUuid, accessToken).unwrapOr(undefined)] as const
+					)
+					.map(async ([id, promise]) => {
+						const userInfo = await promise;
+						return userInfo ? ([id, userInfo] as const) : undefined;
+					})
+			)
+		).filter((entry): entry is readonly [Uuid, GitHubUserInfo] => entry !== undefined)
+	);
 }
 
 const getContainerStats = (dockerId: string) =>

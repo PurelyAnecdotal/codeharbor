@@ -1,24 +1,26 @@
 import { tagged } from '$lib/error';
 import { db } from '$lib/server/db/index.js';
-import { workspaces } from '$lib/server/db/schema.js';
+import * as table from '$lib/server/db/schema.js';
 import { docker } from '$lib/server/docker.js';
+import { isUuid } from '$lib/types.js';
 import { eq } from 'drizzle-orm';
 import { ResultAsync } from 'neverthrow';
 
 export async function DELETE({ locals, params }) {
-	const session = await locals.auth();
+	const { user } = locals;
 
-	if (!session || !session.id || !session.accessToken)
-		return new Response('Unauthorized', { status: 401 });
+	if (!user) return new Response('Unauthorized', { status: 401 });
+
+	if (!isUuid(params.uuid)) return new Response('Invalid UUID format', { status: 400 });
 
 	const dbSelectResult = await ResultAsync.fromPromise(
 		db
 			.select({
-				ownerId: workspaces.ownerId,
-				dockerId: workspaces.dockerId
+				ownerUuid: table.workspace.ownerUuid,
+				dockerId: table.workspace.dockerId
 			})
-			.from(workspaces)
-			.where(eq(workspaces.uuid, params.uuid)),
+			.from(table.workspace)
+			.where(eq(table.workspace.uuid, params.uuid)),
 		(err) => tagged('DBError', err)
 	);
 
@@ -31,7 +33,7 @@ export async function DELETE({ locals, params }) {
 
 	const workspace = dbResponse[0];
 
-	if (workspace.ownerId !== session.id) return new Response('Forbidden', { status: 403 });
+	if (workspace.ownerUuid !== user.uuid) return new Response('Forbidden', { status: 403 });
 
 	const dockerResult = await ResultAsync.fromPromise(
 		docker.getContainer(workspace.dockerId).remove(),
@@ -44,7 +46,7 @@ export async function DELETE({ locals, params }) {
 	}
 
 	const dbDeleteResult = await ResultAsync.fromPromise(
-		db.delete(workspaces).where(eq(workspaces.uuid, params.uuid)),
+		db.delete(table.workspace).where(eq(table.workspace.uuid, params.uuid)),
 		(err) => tagged('DBError', err)
 	);
 

@@ -1,14 +1,14 @@
 import { err, ok, Result, ResultAsync } from 'neverthrow';
 
-const resultAllSettled = <T, E>(resultAsyncs: ResultAsync<T, E>[]) =>
-	ResultAsync.fromSafePromise(Promise.allSettled(resultAsyncs)).map((allSettledRes) =>
+export const resultAllSettled = <T, E>(resultAsyncs: ResultAsync<T, E>[]) =>
+	Promise.allSettled(resultAsyncs).then((allSettledRes) =>
 		allSettledRes
 			.filter((settledRes) => settledRes.status === 'fulfilled')
 			.map((fulfilledRes) => fulfilledRes.value)
 	);
 
 export const getOkResultAsyncs = <T, E>(resultAsyncs: ResultAsync<T, E>[]) =>
-	resultAllSettled(resultAsyncs).map((results) =>
+	resultAllSettled(resultAsyncs).then((results) =>
 		results.filter((result) => result.isOk()).map((result) => result.value)
 	);
 

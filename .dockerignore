@@ -1,0 +1,14 @@
+node_modules
+Dockerfile
+.dockerignore
+.git
+.gitignore
+.prettierignore
+.prettierrc
+README.md
+LICENSE
+.vscode
+.github
+.env
+.build
+.svelte-kit

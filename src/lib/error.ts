@@ -1,3 +1,5 @@
+import { ResultAsync } from "neverthrow";
+
 const errorMessages = {
 	UnknownError: 'An unknown error occurred',
 	DBError: 'Error contacting database',
@@ -34,3 +36,12 @@ export const hideCause = <Tag extends ErrorTypes>(taggedError: Tagged<Tag>): Tag
 	_tag: taggedError._tag,
 	message: taggedError.message
 });
+
+export const wrapDB = <T>(dbPromise: PromiseLike<T>) =>
+	ResultAsync.fromPromise(dbPromise, (err) => tagged('DBError', err));
+
+export const wrapDockerode = <T>(dockerodePromise: PromiseLike<T>) =>
+	ResultAsync.fromPromise(dockerodePromise, (err) => tagged('DockerodeError', err));
+
+export const wrapOctokit = <T>(octokitPromise: PromiseLike<T>) =>
+	ResultAsync.fromPromise(octokitPromise, (err) => tagged('OctokitError', err));
