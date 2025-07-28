@@ -1,8 +1,8 @@
-import { containerStop } from '$lib/server/docker';
-import { validateWorkspaceAccess } from '$lib/server/workspaces.js';
+import { calculateContainerResourceUsage, containerStats } from '$lib/server/docker';
+import { validateWorkspaceAccess } from '$lib/server/workspaces';
 import { isUuid } from '$lib/types';
 
-export async function POST({ locals, params }) {
+export async function GET({ params, locals }) {
 	if (locals.user === null) return new Response('Unauthorized', { status: 401 });
 
 	const authedUserUuid = locals.user.uuid;
@@ -14,12 +14,12 @@ export async function POST({ locals, params }) {
 	if (validationResult.isErr()) return validationResult.error;
 	const { dockerId } = validationResult.value;
 
-	const dockerResult = await containerStop(dockerId);
+	const dockerResult = await containerStats(dockerId);
 
 	if (dockerResult.isErr()) {
-		console.error('Failed to stop container:', dockerResult.error);
-		return new Response('Failed to stop container', { status: 500 });
+		console.error('Failed to get container stats:', dockerResult.error);
+		return new Response('Failed to get container stats', { status: 500 });
 	}
 
-	return new Response('Workspace stopped', { status: 200 });
+	return Response.json(calculateContainerResourceUsage(dockerResult.value));
 }

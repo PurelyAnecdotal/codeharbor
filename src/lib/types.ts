@@ -33,8 +33,10 @@ export interface GitHubUserInfo {
 export interface WorkspaceContainerInfo extends WorkspaceDBEntry {
 	url?: string;
 	state: ContainerState;
-	// cpuUsage?: number;
-	// memoryUsage?: number;
 	ownerInfo?: GitHubUserInfo;
 	sharedUsersInfo: Map<Uuid, GitHubUserInfo>;
+	cpuUsage?: number;
+	memoryUsage?: number;
+	cpusLimit?: number;
+	memoryLimitGiB?: number;
 }

@@ -6,8 +6,8 @@ const errorMessages = {
 	DockerodeError: 'Error communicating with Docker',
 	ContainerNotFoundError: 'Container not found',
 	ContainerNotRunningError: 'Container is not running',
-	BridgeNetworkNotFoundError: 'Bridge network not found',
-	OctokitError: 'Error communicating with GitHub'
+	OctokitError: 'Error communicating with GitHub',
+	RequestValidationError: 'Request validation failed',
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 

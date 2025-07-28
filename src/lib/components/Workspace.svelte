@@ -4,17 +4,19 @@
 		workspaceDelete,
 		workspaceShare,
 		workspaceStart,
+		workspaceStats,
 		workspaceStop,
 		workspaceUnshare
-	} from '$lib/api';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	} from '$lib/fetch';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index';
 	import Input from '$lib/components/ui/input/input.svelte';
-	import * as Popover from '$lib/components/ui/popover/index.js';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import * as Popover from '$lib/components/ui/popover/index';
+	import * as Sheet from '$lib/components/ui/sheet/index';
+	import { tagged } from '$lib/error';
 	import type { GitHubUserInfo, Uuid, WorkspaceContainerInfo } from '$lib/types';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
@@ -33,8 +35,12 @@
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import UsersIcon from '@lucide/svelte/icons/users';
-	import type { Result } from 'neverthrow';
+	import { err, ok, type Result } from 'neverthrow';
+	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import type { BaseIssue, BaseSchema, Config, InferIssue } from 'valibot';
+	import * as v from 'valibot';
+	import GithubAvatar from './GithubAvatar.svelte';
 
 	interface Props {
 		workspace: WorkspaceContainerInfo;
@@ -100,17 +106,59 @@
 	) =>
 		result.match(
 			async (resp) => {
-				if (resp.ok && successMessage) toast.success(successMessage);
-				else toast.error(errorMessage, { description: await resp.text() });
+				if (resp.ok) {
+					if (successMessage) toast.success(successMessage);
+				} else {
+					toast.error(errorMessage, { description: await resp.text() });
+				}
 			},
 			(err) => toast.error(errorMessage, { description: err.message })
 		);
 
-	const yourID = $derived(page.data.session?.id);
+	const yourID = $derived(page.data.user?.uuid!);
 
 	let addSharedUserPopoverOpen = $state(false);
 
 	let addSharedUserInput = $state('');
+
+	const percentFormatter = new Intl.NumberFormat('en-US', {
+		style: 'percent',
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 2
+	});
+
+	const StatsSchema = v.object({
+		cpuUsage: v.optional(v.number()),
+		memoryUsage: v.optional(v.number())
+	});
+
+	function resultParse<const TSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>>(
+		schema: TSchema,
+		input: unknown,
+		config?: Config<InferIssue<TSchema>>
+	): Result<v.InferOutput<TSchema>, v.SafeParseResult<TSchema>['issues']> {
+		const parsed = v.safeParse(schema, input, config);
+		return parsed.success ? ok(parsed.output) : err(parsed.issues);
+	}
+
+	type StatsData = v.InferOutput<typeof StatsSchema>;
+
+	let stats: StatsData | undefined = $state(undefined);
+
+	onMount(() => {
+		workspaceStats(workspace.uuid)
+			.map((res) => res.json())
+			.andThen((data) =>
+				resultParse(StatsSchema, data).mapErr((err) => tagged('RequestValidationError', err))
+			)
+			.map((data) => {
+				stats = data;
+			})
+			.orTee((err) => {
+				console.error('Failed to fetch workspace stats:', err);
+				toast.error('Failed to fetch workspace stats', { description: err.message });
+			});
+	});
 </script>
 
 <Card.Root>
@@ -148,6 +196,19 @@
 				Owned by {@render username(workspace.ownerInfo)}
 			</Badge>
 		{/if} -->
+		<div class="flex gap-2">
+			{#if workspace.cpusLimit !== undefined}
+				<Badge variant="outline">
+					CPUs: {workspace.cpusLimit}
+				</Badge>
+			{/if}
+
+			{#if workspace.memoryLimitGiB !== undefined}
+				<Badge variant="outline">
+					Memory: {workspace.memoryLimitGiB} GiB
+				</Badge>
+			{/if}
+		</div>
 	</Card.Header>
 
 	<Card.Footer class="flex gap-2">
@@ -263,6 +324,13 @@
 				</Sheet.Footer>
 			</Sheet.Content>
 		</Sheet.Root>
+
+		{#if stats?.cpuUsage !== undefined}
+			CPU Usage: {percentFormatter.format(stats.cpuUsage)}
+		{/if}
+		{#if stats?.memoryUsage !== undefined}
+			Memory Usage: {percentFormatter.format(stats.memoryUsage)}
+		{/if}
 	</Card.Footer>
 </Card.Root>
 
@@ -276,7 +344,8 @@
 
 {#snippet userCard(githubUserInfo: GitHubUserInfo, userUuid: Uuid)}
 	<div class="flex items-center gap-2 p-2">
-		<img src="https://avatars.githubusercontent.com/u/{githubUserInfo.id}" alt={githubUserInfo.login} class="h-6 w-6 rounded-full" />
+		<GithubAvatar ghId={githubUserInfo.id} ghLogin={githubUserInfo.login} />
+
 		{@render username(githubUserInfo)}
 		{#if userUuid !== workspace.ownerUuid}
 			<DropdownMenu.Root>

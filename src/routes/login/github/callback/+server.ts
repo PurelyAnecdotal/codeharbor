@@ -6,7 +6,7 @@ import {
 	setSessionTokenCookie
 } from '$lib/server/auth';
 import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/schema';
+import { users } from '$lib/server/db/schema';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { OAuth2Tokens } from 'arctic';
 import { eq } from 'drizzle-orm';
@@ -56,23 +56,20 @@ export async function GET(event: RequestEvent) {
 		});
 	}
 
-	const userResult = await createUser(
+	const userCreationResult = await createUser(
 		githubUserId,
 		githubUsername,
 		githubName,
 		tokens.accessToken()
 	);
 
-	if (userResult.isErr() || !userResult.value) {
-		console.error(
-			'Failed to create user:',
-			userResult.isErr() ? userResult.error : 'No user created'
-		);
+	if (userCreationResult.isErr()) {
+		console.error('Failed to create user:', userCreationResult.error);
 		return new Response('Database Error', { status: 500 });
 	}
 
 	const sessionToken = generateSessionToken();
-	const session = await createSession(sessionToken, userResult.value.uuid);
+	const session = await createSession(sessionToken, userCreationResult.value.uuid);
 	setSessionTokenCookie(event, sessionToken, session.expiresAt);
 
 	return new Response(null, {
@@ -84,9 +81,17 @@ export async function GET(event: RequestEvent) {
 }
 
 const getUserFromGitHubId = (ghId: number) =>
-	wrapDB(db.select().from(user).where(eq(user.ghId, ghId))).map((select) => select[0]);
+	wrapDB(db.select().from(users).where(eq(users.ghId, ghId))).map((select) => select[0]);
 
-const createUser = (ghId: number, ghLogin: string, ghName: string | null, ghAccessToken: string) =>
-	wrapDB(db.insert(user).values({ ghId, ghLogin, ghName, ghAccessToken }).returning()).map(
-		(insert) => insert[0]
+const createUser = (
+	ghId: number,
+	ghLogin: string,
+	ghName: string | null,
+	ghAccessToken: string
+) => {
+	const uuid = crypto.randomUUID();
+
+	return wrapDB(db.insert(users).values({ uuid, ghId, ghLogin, ghName, ghAccessToken })).map(
+		() => ({ uuid })
 	);
+};

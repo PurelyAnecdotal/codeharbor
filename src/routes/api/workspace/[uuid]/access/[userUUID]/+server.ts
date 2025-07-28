@@ -1,100 +1,62 @@
-import { tagged } from '$lib/error.js';
-import { db } from '$lib/server/db/index.js';
-import * as table from '$lib/server/db/schema.js';
+import { db } from '$lib/server/db/index';
+import { workspacesToSharedUsers } from '$lib/server/db/schema';
+import { validateWorkspaceAccess } from '$lib/server/workspaces';
 import { isUuid } from '$lib/types';
-import { eq } from 'drizzle-orm';
-import { ResultAsync } from 'neverthrow';
+import { and, eq } from 'drizzle-orm';
 
 export async function PUT({ locals, params }) {
-	const { user } = locals;
+	if (locals.user === null) return new Response('Unauthorized', { status: 401 });
 
-	if (!user) return new Response('Unauthorized', { status: 401 });
+	const authedUserUuid = locals.user.uuid;
+	const workspaceUuid = params.uuid;
+	const userUuidToShare = params.userUUID;
 
-	if (!isUuid(params.uuid) || !isUuid(params.userUUID))
-		return new Response('Invalid UUID format', { status: 400 });
+	if (!isUuid(workspaceUuid)) return new Response('Invalid workspace UUID format', { status: 400 });
+	if (!isUuid(userUuidToShare)) return new Response('Invalid user UUID format', { status: 400 });
 
-	const dbSelectResult = await ResultAsync.fromPromise(
-		db
-			.select({
-				ownerUuid: table.workspace.ownerUuid,
-				sharedUserUuids: table.workspace.sharedUserUuids,
-				dockerId: table.workspace.dockerId
-			})
-			.from(table.workspace)
-			.where(eq(table.workspace.uuid, params.uuid)),
-		(err) => tagged('DBError', err)
-	);
+	const validationResult = await validateWorkspaceAccess(authedUserUuid, workspaceUuid);
+	if (validationResult.isErr()) return validationResult.error;
+	const { sharedUserUuids, ownerUuid } = validationResult.value;
 
-	if (dbSelectResult.isErr()) return new Response('Database Error', { status: 500 });
+	if (sharedUserUuids.includes(userUuidToShare))
+		return new Response('Workspace has already been shared with user', { status: 400 });
 
-	const dbResponse = dbSelectResult.value;
-
-	if (dbResponse.length === 0 || !dbResponse[0])
-		return new Response('Workspace not found', { status: 404 });
-
-	const workspace = dbResponse[0];
-
-	if (workspace.ownerUuid !== user.uuid && !workspace.sharedUserUuids.includes(user.uuid))
-		return new Response('Forbidden', { status: 403 });
-
-	if (workspace.sharedUserUuids.includes(user.uuid))
-		return new Response('User already has access', { status: 400 });
-
-	if (workspace.ownerUuid === user.uuid)
+	if (ownerUuid === userUuidToShare)
 		return new Response('Cannot share workspace with owner', { status: 400 });
 
-	db.update(table.workspace)
-		.set({
-			sharedUserUuids: [...workspace.sharedUserUuids, user.uuid]
-		})
-		.where(eq(table.workspace.uuid, params.uuid));
+	await db.insert(workspacesToSharedUsers).values({ userUuid: userUuidToShare, workspaceUuid });
 
 	return new Response('Workspace shared with user', { status: 200 });
 }
 
 export async function DELETE({ locals, params }) {
-	const { user } = locals;
+	if (locals.user === null) return new Response('Unauthorized', { status: 401 });
 
-	if (!user) return new Response('Unauthorized', { status: 401 });
+	const authedUserUuid = locals.user.uuid;
+	const workspaceUuid = params.uuid;
+	const userUuidToUnshare = params.userUUID;
 
-	if (!isUuid(params.uuid) || !isUuid(params.userUUID))
-		return new Response('Invalid UUID format', { status: 400 });
+	if (!isUuid(workspaceUuid)) return new Response('Invalid workspace UUID format', { status: 400 });
+	if (!isUuid(userUuidToUnshare)) return new Response('Invalid user UUID format', { status: 400 });
 
-	const dbSelectResult = await ResultAsync.fromPromise(
-		db
-			.select({
-				ownerUuid: table.workspace.ownerUuid,
-				sharedUserUuids: table.workspace.sharedUserUuids,
-				dockerId: table.workspace.dockerId
-			})
-			.from(table.workspace)
-			.where(eq(table.workspace.uuid, params.uuid)),
-		(err) => tagged('DBError', err)
-	);
+	const validationResult = await validateWorkspaceAccess(authedUserUuid, workspaceUuid);
+	if (validationResult.isErr()) return validationResult.error;
+	const { sharedUserUuids, ownerUuid } = validationResult.value;
 
-	if (dbSelectResult.isErr()) return new Response('Database Error', { status: 500 });
-
-	const dbResponse = dbSelectResult.value;
-
-	if (dbResponse.length === 0 || !dbResponse[0])
-		return new Response('Workspace not found', { status: 404 });
-
-	const workspace = dbResponse[0];
-
-	if (workspace.ownerUuid !== user.uuid && !workspace.sharedUserUuids.includes(user.uuid))
-		return new Response('Forbidden', { status: 403 });
-
-	if (!workspace.sharedUserUuids.includes(user.uuid))
+	if (!sharedUserUuids.includes(userUuidToUnshare))
 		return new Response('User does not have access', { status: 400 });
 
-	if (workspace.ownerUuid === user.uuid)
+	if (ownerUuid === userUuidToUnshare)
 		return new Response('Cannot remove access from owner', { status: 400 });
 
-	db.update(table.workspace)
-		.set({
-			sharedUserUuids: workspace.sharedUserUuids.filter((id) => id !== user.uuid)
-		})
-		.where(eq(table.workspace.uuid, params.uuid));
+	await db
+		.delete(workspacesToSharedUsers)
+		.where(
+			and(
+				eq(workspacesToSharedUsers.workspaceUuid, workspaceUuid),
+				eq(workspacesToSharedUsers.userUuid, userUuidToUnshare)
+			)
+		);
 
-	return new Response('Workspace access removed for user', { status: 200 });
+	return new Response('Workspace unshared with user', { status: 200 });
 }

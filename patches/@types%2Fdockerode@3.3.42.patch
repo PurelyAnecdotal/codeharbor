@@ -1,0 +1,36 @@
+diff --git a/node_modules/@types/dockerode/.bun-tag-87f4f6ec8a04c000 b/.bun-tag-87f4f6ec8a04c000
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/index.d.ts b/index.d.ts
+index 5a3effc256716a5a6de869ef5b24fd0a3135f082..fbe2f55d17c129c22789881585517613970ad2da 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -771,8 +771,8 @@ declare namespace Dockerode {
+ 
+     interface CPUStats {
+         cpu_usage: CPUUsage;
+-        system_cpu_usage: number;
+-        online_cpus: number;
++        system_cpu_usage?: number;
++        online_cpus?: number;
+         throttling_data: ThrottlingData;
+     }
+ 
+@@ -780,7 +780,7 @@ declare namespace Dockerode {
+         // Linux Memory Stats
+         stats: {
+             total_pgmajfault: number;
+-            cache: number;
++            cache?: number;
+             mapped_file: number;
+             total_inactive_file: number;
+             pgpgout: number;
+@@ -858,7 +858,7 @@ declare namespace Dockerode {
+         num_procs: number;
+         storage_stats?: StorageStats;
+         networks: NetworkStats;
+-        memory_stats: MemoryStats;
++        memory_stats: MemoryStats | {};
+         cpu_stats: CPUStats;
+         precpu_stats: CPUStats;
+     }

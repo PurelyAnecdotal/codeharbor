@@ -3,7 +3,7 @@ import {
 	AUTH_GTIHUB_SECRET as GITHUB_CLIENT_SECRET
 } from '$env/static/private';
 import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
+import { sessions, users, type Session } from '$lib/server/db/schema';
 import type { Uuid } from '$lib/types';
 import { sha256 } from '@oslojs/crypto/sha2';
 import { encodeBase64url, encodeHexLowerCase } from '@oslojs/encoding';
@@ -21,13 +21,13 @@ export const generateSessionToken = () =>
 export async function createSession(token: string, userUuid: Uuid) {
 	const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
 
-	const session: table.Session = {
+	const session: Session = {
 		id: sessionId,
 		userUuid,
 		expiresAt: new Date(Date.now() + DAY_IN_MS * 30)
 	};
 
-	await db.insert(table.session).values(session);
+	await db.insert(sessions).values(session);
 	return session;
 }
 
@@ -37,17 +37,17 @@ export async function validateSessionToken(token: string) {
 	const [result] = await db
 		.select({
 			user: {
-				uuid: table.user.uuid,
-				ghId: table.user.ghId,
-				ghLogin: table.user.ghLogin,
-				ghName: table.user.ghName,
-				ghAccessToken: table.user.ghAccessToken
+				uuid: users.uuid,
+				ghId: users.ghId,
+				ghLogin: users.ghLogin,
+				ghName: users.ghName,
+				ghAccessToken: users.ghAccessToken
 			},
-			session: table.session
+			session: sessions
 		})
-		.from(table.session)
-		.innerJoin(table.user, eq(table.session.userUuid, table.user.uuid))
-		.where(eq(table.session.id, sessionId));
+		.from(sessions)
+		.innerJoin(users, eq(sessions.userUuid, users.uuid))
+		.where(eq(sessions.id, sessionId));
 
 	if (!result) return { session: null, user: null };
 
@@ -55,7 +55,7 @@ export async function validateSessionToken(token: string) {
 	const sessionExpired = Date.now() >= session.expiresAt.getTime();
 
 	if (sessionExpired) {
-		await db.delete(table.session).where(eq(table.session.id, session.id));
+		await db.delete(sessions).where(eq(sessions.id, session.id));
 		return { session: null, user: null };
 	}
 
@@ -64,9 +64,9 @@ export async function validateSessionToken(token: string) {
 	if (renewSession) {
 		session.expiresAt = new Date(Date.now() + DAY_IN_MS * 30);
 		await db
-			.update(table.session)
+			.update(sessions)
 			.set({ expiresAt: session.expiresAt })
-			.where(eq(table.session.id, session.id));
+			.where(eq(sessions.id, session.id));
 	}
 
 	return { session, user };
@@ -76,8 +76,8 @@ export type SessionValidationResult = Awaited<ReturnType<typeof validateSessionT
 
 export const invalidateSession = (sessionId: string) =>
 	db
-		.delete(table.session)
-		.where(eq(table.session.id, sessionId))
+		.delete(sessions)
+		.where(eq(sessions.id, sessionId))
 		.then(() => {});
 
 export const setSessionTokenCookie = (event: RequestEvent, token: string, expiresAt: Date) =>

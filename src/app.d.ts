@@ -1,3 +1,5 @@
+import type { Uuid } from '$lib/types';
+
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
 declare global {
@@ -8,7 +10,10 @@ declare global {
 			session: import('$lib/server/auth').SessionValidationResult['session'];
 		}
 		interface PageData {
+			// also edit in src/routes/+layout.server.ts
 			user?: {
+				uuid: Uuid;
+				ghId: number;
 				ghLogin: string;
 				ghName: string | null;
 			};
