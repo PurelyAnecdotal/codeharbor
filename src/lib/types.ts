@@ -4,6 +4,12 @@ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[
 
 export const isUuid = (str: string): str is Uuid => uuidRegex.test(str);
 
+export const nameRegex = /^[a-z ,.'-]{5,30}$/i;
+export const letterRegex = /[a-z]+/i;
+
+export const githubRepoCombinedRegex = /^[\w.-]+\/[\w.-]+$/;
+export const githubRepoRegex = /^[\w.-]+$/;
+
 // overrides Dockerode.ContainerInfo.State
 export type ContainerState =
 	| 'created'
@@ -14,29 +20,8 @@ export type ContainerState =
 	| 'removing'
 	| 'dead';
 
-export interface WorkspaceDBEntry {
-	uuid: Uuid;
-	name: string;
-	ownerUuid: Uuid;
-	dockerId: string;
-	repoURL: string;
-	folder: string;
-	sharedUserUuids: Uuid[];
-}
-
 export interface GitHubUserInfo {
 	id: number;
 	login: string;
 	name: string | null;
-}
-
-export interface WorkspaceContainerInfo extends WorkspaceDBEntry {
-	url?: string;
-	state: ContainerState;
-	ownerInfo?: GitHubUserInfo;
-	sharedUsersInfo: Map<Uuid, GitHubUserInfo>;
-	cpuUsage?: number;
-	memoryUsage?: number;
-	cpusLimit?: number;
-	memoryLimitGiB?: number;
 }

@@ -1,13 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import {
-		workspaceDelete,
-		workspaceShare,
-		workspaceStart,
-		workspaceStats,
-		workspaceStop,
-		workspaceUnshare
-	} from '$lib/fetch';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
@@ -17,7 +9,17 @@
 	import * as Popover from '$lib/components/ui/popover/index';
 	import * as Sheet from '$lib/components/ui/sheet/index';
 	import { tagged } from '$lib/error';
-	import type { GitHubUserInfo, Uuid, WorkspaceContainerInfo } from '$lib/types';
+	import {
+		workspaceDelete,
+		workspaceShare,
+		workspaceStart,
+		workspaceStats,
+		workspaceStop,
+		workspaceUnshare
+	} from '$lib/fetch';
+	import { zResult } from '$lib/result';
+	import type { WorkspaceContainerInfo } from '$lib/server/workspaces';
+	import type { GitHubUserInfo, Uuid } from '$lib/types';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import GithubIcon from '@lucide/svelte/icons/github';
@@ -35,11 +37,10 @@
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import UsersIcon from '@lucide/svelte/icons/users';
-	import { err, ok, type Result } from 'neverthrow';
+	import { type Result } from 'neverthrow';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import type { BaseIssue, BaseSchema, Config, InferIssue } from 'valibot';
-	import * as v from 'valibot';
+	import * as z from 'zod';
 	import GithubAvatar from './GithubAvatar.svelte';
 
 	interface Props {
@@ -127,30 +128,20 @@
 		maximumFractionDigits: 2
 	});
 
-	const StatsSchema = v.object({
-		cpuUsage: v.optional(v.number()),
-		memoryUsage: v.optional(v.number())
+	const Stats = z.object({
+		cpuUsage: z.number().optional(),
+		memoryUsage: z.number().optional()
 	});
 
-	function resultParse<const TSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>>(
-		schema: TSchema,
-		input: unknown,
-		config?: Config<InferIssue<TSchema>>
-	): Result<v.InferOutput<TSchema>, v.SafeParseResult<TSchema>['issues']> {
-		const parsed = v.safeParse(schema, input, config);
-		return parsed.success ? ok(parsed.output) : err(parsed.issues);
-	}
-
-	type StatsData = v.InferOutput<typeof StatsSchema>;
+	type StatsData = z.infer<typeof Stats>;
 
 	let stats: StatsData | undefined = $state(undefined);
 
 	onMount(() => {
 		workspaceStats(workspace.uuid)
 			.map((res) => res.json())
-			.andThen((data) =>
-				resultParse(StatsSchema, data).mapErr((err) => tagged('RequestValidationError', err))
-			)
+			.andThen((data) => zResult(Stats.safeParse(data)))
+			.mapErr((err) => tagged('RequestValidationError', err))
 			.map((data) => {
 				stats = data;
 			})
@@ -185,12 +176,14 @@
 				{/if}
 			</Badge>
 		</Card.Title>
-		<Card.Description>
-			<a href={workspace.repoURL} target="_blank" class="flex items-center gap-1">
-				<GithubIcon class="w-4" />
-				{new URL(workspace.repoURL).pathname.replace(/^\//, '').replace(/\.git$/, '')}
-			</a>
-		</Card.Description>
+		{#if workspace.template}
+			<Card.Description>
+				<a href="https://github.com/{workspace.template.ghRepoOwner}/{workspace.template.ghRepoName}" target="_blank" class="flex items-center gap-1">
+					<GithubIcon class="w-4" />
+					{workspace.template.name}
+				</a>
+			</Card.Description>
+		{/if}
 		<!-- {#if workspace.ownerId !== page.data.session?.id && workspace.ownerInfo}
 			<Badge variant="default">
 				Owned by {@render username(workspace.ownerInfo)}

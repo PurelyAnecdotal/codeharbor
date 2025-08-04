@@ -1,5 +1,5 @@
 import { initOctokit } from '$lib/server/octokit';
-import { getWorkspaces } from '$lib/server/workspaces';
+import { getWorkspacesForWorkspaceList } from '$lib/server/workspaces';
 import { error, redirect } from '@sveltejs/kit';
 
 export async function load({ locals }) {
@@ -17,6 +17,6 @@ export async function load({ locals }) {
 	const octokit = octokitResult.value;
 
 	return {
-		workspaces: (await getWorkspaces(user.uuid, octokit)).orTee(console.error)
+		workspaces: (await getWorkspacesForWorkspaceList(user.uuid, octokit)).orTee(console.error)
 	};
 }

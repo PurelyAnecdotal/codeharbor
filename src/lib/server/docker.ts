@@ -1,36 +1,41 @@
-import { wrapDockerode } from '$lib/error';
+import { catchWithTag } from '$lib/error';
 import Dockerode from 'dockerode';
 
 export const docker = new Dockerode();
 
-export const getDockerContainersList = () => wrapDockerode(docker.listContainers({ all: true }));
+export const listContainers = () =>
+	catchWithTag(docker.listContainers({ all: true }), 'ContainersListError');
 
 export const containerCreate = (createOptions: Dockerode.ContainerCreateOptions) =>
-	wrapDockerode(docker.createContainer(createOptions));
+	catchWithTag(docker.createContainer(createOptions), 'ContainerCreateError');
 
 export const containerStart = (
 	containerId: string,
 	startOptions?: Dockerode.ContainerStartOptions
-) => wrapDockerode(docker.getContainer(containerId).start(startOptions));
+) => catchWithTag(docker.getContainer(containerId).start(startOptions), 'ContainerStartError');
 
 export const containerStop = (containerId: string, stopOptions?: Dockerode.ContainerStopOptions) =>
-	wrapDockerode(docker.getContainer(containerId).stop(stopOptions));
+	catchWithTag(docker.getContainer(containerId).stop(stopOptions), 'ContainerStopError');
 
 export const containerRemove = (
 	containerId: string,
 	removeOptions?: Dockerode.ContainerRemoveOptions
-) => wrapDockerode(docker.getContainer(containerId).remove(removeOptions));
+) => catchWithTag(docker.getContainer(containerId).remove(removeOptions), 'ContainerRemoveError');
 
 export const containerInspect = (
 	containerId: string,
 	inspectOptions?: Dockerode.ContainerInspectOptions
-) => wrapDockerode(docker.getContainer(containerId).inspect(inspectOptions));
+) =>
+	catchWithTag(docker.getContainer(containerId).inspect(inspectOptions), 'ContainerInspectError');
 
 export const containerStats = (containerId: string) =>
-	wrapDockerode(docker.getContainer(containerId).stats({ stream: false, 'one-shot': true }));
+	catchWithTag(
+		docker.getContainer(containerId).stats({ stream: false, 'one-shot': true }),
+		'ContainerStatsError'
+	);
 
 export const containerWait = (containerId: string, waitOptions?: Dockerode.ContainerWaitOptions) =>
-	wrapDockerode(docker.getContainer(containerId).wait(waitOptions));
+	catchWithTag(docker.getContainer(containerId).wait(waitOptions), 'ContainerWaitError');
 
 export function calculateContainerResourceUsage({
 	cpu_stats,
@@ -52,3 +57,11 @@ export function calculateContainerResourceUsage({
 
 	return { cpuUsage, memoryUsage };
 }
+
+const gibi = 1024 ** 3;
+
+export const getContainerResourceLimits = (dockerId: string) =>
+	containerInspect(dockerId).map((info) => ({
+		cpusLimit: info.HostConfig.NanoCpus ? info.HostConfig.NanoCpus * 1e-9 : undefined,
+		memoryLimitGiB: info.HostConfig.Memory ? info.HostConfig.Memory / gibi : undefined
+	}));

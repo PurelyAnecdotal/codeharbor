@@ -38,9 +38,9 @@ export async function validateSessionToken(token: string) {
 		.select({
 			user: {
 				uuid: users.uuid,
+				name: users.name,
 				ghId: users.ghId,
 				ghLogin: users.ghLogin,
-				ghName: users.ghName,
 				ghAccessToken: users.ghAccessToken
 			},
 			session: sessions

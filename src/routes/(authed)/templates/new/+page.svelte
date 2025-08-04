@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { workspaceCreate } from '$lib/fetch';
 	import * as Alert from '$lib/components/ui/alert';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Command from '$lib/components/ui/command';
+	import { Input } from '$lib/components/ui/input';
 	import * as Popover from '$lib/components/ui/popover';
+	import { templateCreate } from '$lib/fetch';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import GithubIcon from '@lucide/svelte/icons/github';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
-	import type { Result } from 'neverthrow';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -28,6 +28,9 @@
 		reposResult.isOk() ? reposResult.value.find((r) => r.id === selectedRepoID)?.name : undefined
 	);
 
+	let name = $state('');
+	let description = $state('');
+
 	function closeAndFocusTrigger() {
 		repoPickerOpen = false;
 		tick().then(() => {
@@ -43,39 +46,28 @@
 			return;
 		}
 
-		const cloneURL = reposResult.value.find((r) => r.id === selectedRepoID)?.clone_url;
-
-		if (!selectedRepoID || !cloneURL || creating) return;
+		const repo = reposResult.value.find((r) => r.id === selectedRepoID);
+		if (!repo) return;
 
 		creating = true;
-		const res = await workspaceCreate(cloneURL);
+		await templateCreate({
+			name,
+			description,
+			ghRepoOwner: repo.owner.login,
+			ghRepoName: repo.name
+		})
+			.andTee((resp) => {
+				if (resp.ok) goto('/templates');
+				else toast.error('Failed to create template', { description: resp.statusText });
+			})
+			.orTee((err) => toast.error('Failed to create template', { description: err.message }));
 		creating = false;
-
-		res.map((resp) => {
-			if (resp.ok) goto('/home');
-		});
-		handleWithToast(res, 'Failed to create workspace');
 	}
-
-	const handleWithToast = (
-		result: Result<Response, DOMException | TypeError>,
-		errorMessage: string,
-		successMessage?: string
-	) =>
-		result.match(
-			async (resp) => {
-				if (resp.ok && successMessage) toast.success(successMessage);
-				else toast.error(errorMessage, { description: await resp.text() });
-			},
-			(err) => toast.error(errorMessage, { description: err.message })
-		);
 </script>
 
-<h1 class="mb-4 text-3xl">Create a new workspace</h1>
+<h1 class="mb-8 text-3xl">Create a new template</h1>
 
-<h2 class="mb-4 text-xl">Template</h2>
-
-<p class="mb-4">Select from your repositories</p>
+<h2 class="mb-4 text-xl">Select from your repositories</h2>
 
 {#if reposResult.isErr()}
 	<Alert.Root variant="destructive">
@@ -130,13 +122,21 @@
 			</Command.Root>
 		</Popover.Content>
 	</Popover.Root>
-
-	<div class="mt-4">
-		<Button onclick={create} disabled={creating}>
-			{#if creating}
-				<LoaderCircleIcon class="animate-spin" />
-			{/if}
-			Create
-		</Button>
-	</div>
 {/if}
+
+<h2 class="mt-8 mb-4 text-xl">Name</h2>
+
+<Input bind:value={name} class="w-sm" />
+
+<h2 class="mt-8 mb-4 text-xl">Description</h2>
+
+<Input bind:value={description} class="w-sm" />
+
+<div class="mt-8">
+	<Button onclick={create} disabled={creating}>
+		{#if creating}
+			<LoaderCircleIcon class="animate-spin" />
+		{/if}
+		Create
+	</Button>
+</div>

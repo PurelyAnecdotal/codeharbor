@@ -1,12 +1,14 @@
 import type { Uuid } from '$lib/types';
 import { relations } from 'drizzle-orm';
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, numeric, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+
+const uuid = () => text({ length: 36 }).$type<Uuid>();
 
 export const users = sqliteTable('users', {
-	uuid: text({ length: 36 }).primaryKey().$type<Uuid>(),
+	uuid: uuid().primaryKey(),
+	name: text(),
 	ghId: integer().notNull().unique(),
 	ghLogin: text().notNull().unique(),
-	ghName: text(),
 	updatedAt: integer()
 		.notNull()
 		.$defaultFn(() => Date.now()),
@@ -18,7 +20,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 export const groups = sqliteTable('groups', {
-	uuid: text({ length: 36 }).primaryKey().$type<Uuid>(),
+	uuid: uuid().primaryKey(),
 	admin: integer({ mode: 'boolean' }).notNull().default(false)
 });
 
@@ -29,14 +31,12 @@ export const groupsRelations = relations(groups, ({ many }) => ({
 export const usersToGroups = sqliteTable(
 	'users_to_groups',
 	{
-		userUuid: text({ length: 36 })
+		userUuid: uuid()
 			.notNull()
-			.references(() => users.uuid)
-			.$type<Uuid>(),
-		groupUuid: text({ length: 36 })
+			.references(() => users.uuid),
+		groupUuid: uuid()
 			.notNull()
 			.references(() => groups.uuid)
-			.$type<Uuid>()
 	},
 	(table) => [primaryKey({ columns: [table.userUuid, table.groupUuid] })]
 );
@@ -53,15 +53,15 @@ export const usersToGroupsRelations = relations(usersToGroups, ({ one }) => ({
 }));
 
 export const workspaces = sqliteTable('workspaces', {
-	uuid: text({ length: 36 }).primaryKey().$type<Uuid>(),
+	uuid: uuid().primaryKey(),
 	name: text().notNull(),
-	ownerUuid: text({ length: 36 })
+	ownerUuid: uuid()
 		.notNull()
-		.references(() => users.uuid)
-		.$type<Uuid>(),
+		.references(() => users.uuid),
 	dockerId: text({ length: 64 }).notNull().unique(),
-	repoURL: text().notNull(),
-	folder: text().notNull()
+	// repoURL: text().notNull(),
+	folder: text().notNull(),
+	templateUuid: uuid().references(() => templates.uuid)
 });
 
 export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
@@ -69,20 +69,22 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
 		fields: [workspaces.ownerUuid],
 		references: [users.uuid]
 	}),
+	template: one(templates, {
+		fields: [workspaces.templateUuid],
+		references: [templates.uuid]
+	}),
 	workspacesToSharedUsers: many(workspacesToSharedUsers)
 }));
 
 export const workspacesToSharedUsers = sqliteTable(
 	'workspaces_to_shared_users',
 	{
-		workspaceUuid: text({ length: 36 })
+		workspaceUuid: uuid()
 			.notNull()
-			.references(() => workspaces.uuid)
-			.$type<Uuid>(),
-		userUuid: text({ length: 36 })
+			.references(() => workspaces.uuid),
+		userUuid: uuid()
 			.notNull()
 			.references(() => users.uuid)
-			.$type<Uuid>()
 	},
 	(table) => [primaryKey({ columns: [table.workspaceUuid, table.userUuid] })]
 );
@@ -98,9 +100,54 @@ export const workspacesToSharedUsersRelations = relations(workspacesToSharedUser
 	})
 }));
 
+export const templates = sqliteTable('templates', {
+	uuid: uuid().primaryKey(),
+	name: text().notNull(),
+	description: text(),
+	ownerUuid: uuid()
+		.notNull()
+		.references(() => users.uuid),
+	createdAt: integer({ mode: 'timestamp' }).notNull(),
+	ghRepoOwner: text().notNull(),
+	ghRepoName: text().notNull(),
+	suggestedCpusLimit: numeric({ mode: 'number' }).notNull().default(1),
+	suggestedMemoryLimitGiB: numeric({ mode: 'number' }).notNull().default(1)
+});
+
+export const templatesRelations = relations(templates, ({ one }) => ({
+	owner: one(users, {
+		fields: [templates.ownerUuid],
+		references: [users.uuid]
+	})
+}));
+
+export const groupsToTemplates = sqliteTable(
+	'groups_to_templates',
+	{
+		groupUuid: uuid()
+			.notNull()
+			.references(() => groups.uuid),
+		templateUuid: uuid()
+			.notNull()
+			.references(() => templates.uuid)
+	},
+	(table) => [primaryKey({ columns: [table.groupUuid, table.templateUuid] })]
+);
+
+export const groupsToTemplatesRelations = relations(groupsToTemplates, ({ one }) => ({
+	group: one(groups, {
+		fields: [groupsToTemplates.groupUuid],
+		references: [groups.uuid]
+	}),
+	template: one(templates, {
+		fields: [groupsToTemplates.templateUuid],
+		references: [templates.uuid]
+	})
+}));
+
 export const sessions = sqliteTable('sessions', {
 	id: text().primaryKey(),
-	userUuid: text()
+	userUuid: uuid()
 		.notNull()
 		.references(() => users.uuid),
 	expiresAt: integer({ mode: 'timestamp' }).notNull()
@@ -112,6 +159,10 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 		references: [users.uuid]
 	})
 }));
+
+export const blockedUsers = sqliteTable('blocked_users', {
+	ghId: integer().primaryKey()
+});
 
 export type Session = typeof sessions.$inferSelect;
 export type User = typeof users.$inferSelect;

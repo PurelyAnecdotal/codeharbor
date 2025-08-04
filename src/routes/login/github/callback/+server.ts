@@ -1,4 +1,5 @@
 import { wrapDB } from '$lib/error';
+import { safeFetch } from '$lib/fetch';
 import {
 	createSession,
 	generateSessionToken,
@@ -6,10 +7,17 @@ import {
 	setSessionTokenCookie
 } from '$lib/server/auth';
 import { db } from '$lib/server/db';
-import { users } from '$lib/server/db/schema';
+import { blockedUsers, users } from '$lib/server/db/schema';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { OAuth2Tokens } from 'arctic';
 import { eq } from 'drizzle-orm';
+import * as z from 'zod';
+
+const GithubUser = z.object({
+	id: z.number(),
+	login: z.string(),
+	name: z.string().nullable()
+});
 
 export async function GET(event: RequestEvent) {
 	const code = event.url.searchParams.get('code');
@@ -25,18 +33,38 @@ export async function GET(event: RequestEvent) {
 	} catch (e) {
 		return new Response(null, { status: 400 });
 	}
-	const githubUserResponse = await fetch('https://api.github.com/user', {
+
+	const githubUserResponseResult = await safeFetch('https://api.github.com/user', {
 		headers: {
 			Authorization: `Bearer ${tokens.accessToken()}`
 		}
 	});
-	const githubUser = await githubUserResponse.json();
-	const githubUserId = githubUser.id;
-	const githubUsername = githubUser.login;
-	const githubName = githubUser.name;
+	if (githubUserResponseResult.isErr()) {
+		console.error('Failed to fetch GitHub user:', githubUserResponseResult.error);
+		return new Response('GitHub API Error', { status: 500 });
+	}
+
+	const githubUserData = GithubUser.safeParse(await githubUserResponseResult.value.json());
+	if (!githubUserData.success) {
+		console.error('Invalid GitHub user data:', githubUserData.error);
+		return new Response('Invalid GitHub User Data', { status: 500 });
+	}
+
+	const { id: githubUserId, login: githubUsername, name: githubName } = githubUserData.data;
+
+	const blockedResult = await wrapDB(
+		db.select().from(blockedUsers).where(eq(blockedUsers.ghId, githubUserId))
+	).map((select) => (select[0] !== undefined ? true : false));
+	if (blockedResult.isErr()) {
+		console.error('Failed to check if user is blocked:', blockedResult.error);
+		return new Response('Database Error', { status: 500 });
+	}
+	if (blockedResult.value) {
+		console.warn(`Blocked user attempted to log in: ${githubUsername} (${githubUserId})`);
+		return new Response('You are blocked from using this service.', { status: 403 });
+	}
 
 	const existingUserResult = await getUserFromGitHubId(githubUserId);
-
 	if (existingUserResult.isErr()) {
 		console.error('Failed to get user from database:', existingUserResult.error);
 		return new Response('Database Error', { status: 500 });
@@ -56,12 +84,11 @@ export async function GET(event: RequestEvent) {
 		});
 	}
 
-	const userCreationResult = await createUser(
-		githubUserId,
-		githubUsername,
-		githubName,
-		tokens.accessToken()
-	);
+	const userCreationResult = await createUser({
+		ghId: githubUserId,
+		ghLogin: githubUsername,
+		ghAccessToken: tokens.accessToken()
+	});
 
 	if (userCreationResult.isErr()) {
 		console.error('Failed to create user:', userCreationResult.error);
@@ -72,10 +99,14 @@ export async function GET(event: RequestEvent) {
 	const session = await createSession(sessionToken, userCreationResult.value.uuid);
 	setSessionTokenCookie(event, sessionToken, session.expiresAt);
 
+	let redirectUrl = '/welcome';
+
+	if (githubName) redirectUrl += `?${new URLSearchParams([['ghName', githubName]])}`;
+
 	return new Response(null, {
 		status: 302,
 		headers: {
-			Location: '/'
+			Location: redirectUrl
 		}
 	});
 }
@@ -83,15 +114,17 @@ export async function GET(event: RequestEvent) {
 const getUserFromGitHubId = (ghId: number) =>
 	wrapDB(db.select().from(users).where(eq(users.ghId, ghId))).map((select) => select[0]);
 
-const createUser = (
-	ghId: number,
-	ghLogin: string,
-	ghName: string | null,
-	ghAccessToken: string
-) => {
+interface UserCreateOptions {
+	name?: string;
+	ghId: number;
+	ghLogin: string;
+	ghAccessToken: string;
+}
+
+function createUser(options: UserCreateOptions) {
 	const uuid = crypto.randomUUID();
 
-	return wrapDB(db.insert(users).values({ uuid, ghId, ghLogin, ghName, ghAccessToken })).map(
-		() => ({ uuid })
-	);
-};
+	return wrapDB(db.insert(users).values({ uuid, ...options })).map(() => ({
+		uuid
+	}));
+}

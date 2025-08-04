@@ -13,9 +13,9 @@ declare global {
 			// also edit in src/routes/+layout.server.ts
 			user?: {
 				uuid: Uuid;
+				name: string | null;
 				ghId: number;
 				ghLogin: string;
-				ghName: string | null;
 			};
 		}
 		// interface PageState {}

@@ -15,7 +15,7 @@
 		<h1 class="text-3xl">Workspaces</h1>
 
 		{#if workspacesRes.isOk()}
-			<Button variant={workspacesRes.value.length === 0 ? 'default' : 'outline'} href="/new">
+			<Button href="/templates" variant={workspacesRes.value.length === 0 ? 'default' : 'outline'}>
 				<PlusIcon /> New Workspace
 			</Button>
 		{/if}
@@ -25,7 +25,7 @@
 		{#each workspacesRes.value as workspace (workspace.uuid)}
 			<Workspace {workspace} />
 		{:else}
-			<p>Looks like you don't have any workspaces.</p>
+			<p class="opacity-70">Looks like you don't have any workspaces.</p>
 		{/each}
 	{:else}
 		<Alert.Root variant="destructive">

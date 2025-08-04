@@ -4,10 +4,20 @@ const errorMessages = {
 	UnknownError: 'An unknown error occurred',
 	DBError: 'Error contacting database',
 	DockerodeError: 'Error communicating with Docker',
+	ContainerCreateError: 'Failed to create container',
+	ContainerStartError: 'Failed to start container',
+	ContainerStopError: 'Failed to stop container',
+	ContainerRemoveError: 'Failed to remove container',
+	ContainerInspectError: 'Failed to inspect container',
+	ContainerStatsError: 'Failed to get container stats',
+	ContainerWaitError: 'Failed to wait for container',
+	ContainersListError: 'Failed to list containers',
 	ContainerNotFoundError: 'Container not found',
 	ContainerNotRunningError: 'Container is not running',
 	OctokitError: 'Error communicating with GitHub',
 	RequestValidationError: 'Request validation failed',
+	TemplateNotFoundError: 'Template not found',
+	GitCloneError: 'Git clone failed',
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 
@@ -45,3 +55,6 @@ export const wrapDockerode = <T>(dockerodePromise: PromiseLike<T>) =>
 
 export const wrapOctokit = <T>(octokitPromise: PromiseLike<T>) =>
 	ResultAsync.fromPromise(octokitPromise, (err) => tagged('OctokitError', err));
+
+export const catchWithTag = <T, Tag extends ErrorTypes>(promise: PromiseLike<T>, tag: Tag): ResultAsync<T, Tagged<Tag>> =>
+	ResultAsync.fromPromise(promise, (err) => tagged(tag, err));

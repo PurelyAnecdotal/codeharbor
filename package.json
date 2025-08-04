@@ -61,7 +61,7 @@
 		"mode-watcher": "^1.1.0",
 		"neverthrow": "^8.2.0",
 		"svelte-sonner": "^1.0.5",
-		"valibot": "^1.1.0"
+		"zod": "^4.0.10"
 	},
 	"patchedDependencies": {
 		"@types/dockerode@3.3.42": "patches/@types%2Fdockerode@3.3.42.patch"
