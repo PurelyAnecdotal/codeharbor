@@ -51,6 +51,7 @@
 			{/if}
 		</div>
 	</div>
+
 	{@render children()}
 </div>
 

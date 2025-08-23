@@ -1,8 +1,5 @@
-import { db } from '$lib/server/db/index';
-import { workspacesToSharedUsers } from '$lib/server/db/schema';
-import { validateWorkspaceAccess } from '$lib/server/workspaces';
+import { addWorkspaceSharedUser, removeWorkspaceSharedUser, validateWorkspaceAccess } from '$lib/server/workspaces';
 import { isUuid } from '$lib/types';
-import { and, eq } from 'drizzle-orm';
 
 export async function PUT({ locals, params }) {
 	if (locals.user === null) return new Response('Unauthorized', { status: 401 });
@@ -24,7 +21,7 @@ export async function PUT({ locals, params }) {
 	if (ownerUuid === userUuidToShare)
 		return new Response('Cannot share workspace with owner', { status: 400 });
 
-	await db.insert(workspacesToSharedUsers).values({ userUuid: userUuidToShare, workspaceUuid });
+	await addWorkspaceSharedUser(workspaceUuid, userUuidToShare);
 
 	return new Response('Workspace shared with user', { status: 200 });
 }
@@ -49,14 +46,7 @@ export async function DELETE({ locals, params }) {
 	if (ownerUuid === userUuidToUnshare)
 		return new Response('Cannot remove access from owner', { status: 400 });
 
-	await db
-		.delete(workspacesToSharedUsers)
-		.where(
-			and(
-				eq(workspacesToSharedUsers.workspaceUuid, workspaceUuid),
-				eq(workspacesToSharedUsers.userUuid, userUuidToUnshare)
-			)
-		);
+	await removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
 
 	return new Response('Workspace unshared with user', { status: 200 });
 }

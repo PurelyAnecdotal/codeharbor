@@ -8,18 +8,10 @@
 	import Input from '$lib/components/ui/input/input.svelte';
 	import * as Popover from '$lib/components/ui/popover/index';
 	import * as Sheet from '$lib/components/ui/sheet/index';
-	import { tagged } from '$lib/error';
-	import {
-		workspaceDelete,
-		workspaceShare,
-		workspaceStart,
-		workspaceStats,
-		workspaceStop,
-		workspaceUnshare
-	} from '$lib/fetch';
-	import { zResult } from '$lib/result';
+	import type { ErrorTypes, Tagged } from '$lib/error';
+	import { JtoR } from '$lib/result';
 	import type { WorkspaceContainerInfo } from '$lib/server/workspaces';
-	import type { GitHubUserInfo, Uuid } from '$lib/types';
+	import type { Uuid } from '$lib/types';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import GithubIcon from '@lucide/svelte/icons/github';
@@ -37,11 +29,17 @@
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import UsersIcon from '@lucide/svelte/icons/users';
-	import { type Result } from 'neverthrow';
-	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import * as z from 'zod';
-	import GithubAvatar from './GithubAvatar.svelte';
+	import GithubAvatar from '../../../lib/components/GithubAvatar.svelte';
+	import {
+		deleteWorkspace,
+		getWorkspaces,
+		getWorkspaceStats,
+		shareWorkspace,
+		startWorkspace,
+		stopWorkspace,
+		unshareWorkspace
+	} from './workspaces.remote';
 
 	interface Props {
 		workspace: WorkspaceContainerInfo;
@@ -53,68 +51,44 @@
 	let stopping = $state(false);
 	let deleting = $state(false);
 
-	async function startWorkspace() {
+	async function start() {
 		starting = true;
-		const res = await workspaceStart(workspace.uuid);
+		JtoR(await startWorkspace(workspace.uuid).updates(getWorkspaces()))
+			.orTee(handleWithToast('Failed to start workspace'))
+			.orTee(console.log);
 		starting = false;
-
-		res.map(reloadIfOk);
-		handleWithToast(res, 'Failed to start workspace');
 	}
 
-	async function stopWorkspace() {
+	async function stop() {
 		stopping = true;
-		const res = await workspaceStop(workspace.uuid);
+		JtoR(await stopWorkspace(workspace.uuid).updates(getWorkspaces())).orTee(
+			handleWithToast('Failed to start workspace')
+		);
 		stopping = false;
-
-		res.map(reloadIfOk);
-		handleWithToast(res, 'Failed to stop workspace');
 	}
 
-	async function deleteWorkspace() {
+	async function deleteMe() {
 		deleting = true;
-		const res = await workspaceDelete(workspace.uuid);
+		JtoR(await deleteWorkspace(workspace.uuid).updates(getWorkspaces())).orTee(
+			handleWithToast('Failed to start workspace')
+		);
 		deleting = false;
-
-		res.map(reloadIfOk);
-		handleWithToast(res, 'Failed to delete workspace');
 	}
 
-	async function addSharedUser(uuid: Uuid) {
-		const res = await workspaceShare(workspace.uuid, uuid);
-
-		handleWithToast(res, 'Failed to share workspace with user', 'Workspace shared with user');
+	async function addSharedUser(userUuidToShare: Uuid) {
+		JtoR(await shareWorkspace({ workspaceUuid: workspace.uuid, userUuidToShare }))
+			.andTee(() => toast.success('Workspace shared with user'))
+			.orTee(handleWithToast('Failed to share workspace with user'));
 	}
 
-	async function removeSharedUser(uuid: Uuid) {
-		const res = await workspaceUnshare(workspace.uuid, uuid);
-
-		handleWithToast(
-			res,
-			'Failed to remove workspace access for user',
-			'Workspace access removed for user'
-		);
+	async function removeSharedUser(userUuidToUnshare: Uuid) {
+		JtoR(await unshareWorkspace({ workspaceUuid: workspace.uuid, userUuidToUnshare }))
+			.andTee(() => toast.success('Workspace shared with user'))
+			.orTee(handleWithToast('Failed to share workspace with user'));
 	}
 
-	const reloadIfOk = (resp: Response) => {
-		if (resp.ok) location.reload();
-	};
-
-	const handleWithToast = (
-		result: Result<Response, DOMException | TypeError>,
-		errorMessage: string,
-		successMessage?: string
-	) =>
-		result.match(
-			async (resp) => {
-				if (resp.ok) {
-					if (successMessage) toast.success(successMessage);
-				} else {
-					toast.error(errorMessage, { description: await resp.text() });
-				}
-			},
-			(err) => toast.error(errorMessage, { description: err.message })
-		);
+	const handleWithToast = (errMsg: string) => (err: Tagged<ErrorTypes>) =>
+		toast.error(errMsg, { description: err.message });
 
 	const yourID = $derived(page.data.user?.uuid!);
 
@@ -128,28 +102,7 @@
 		maximumFractionDigits: 2
 	});
 
-	const Stats = z.object({
-		cpuUsage: z.number().optional(),
-		memoryUsage: z.number().optional()
-	});
-
-	type StatsData = z.infer<typeof Stats>;
-
-	let stats: StatsData | undefined = $state(undefined);
-
-	onMount(() => {
-		workspaceStats(workspace.uuid)
-			.map((res) => res.json())
-			.andThen((data) => zResult(Stats.safeParse(data)))
-			.mapErr((err) => tagged('RequestValidationError', err))
-			.map((data) => {
-				stats = data;
-			})
-			.orTee((err) => {
-				console.error('Failed to fetch workspace stats:', err);
-				toast.error('Failed to fetch workspace stats', { description: err.message });
-			});
-	});
+	const statsQuery = getWorkspaceStats(workspace.uuid);
 </script>
 
 <Card.Root>
@@ -178,7 +131,11 @@
 		</Card.Title>
 		{#if workspace.template}
 			<Card.Description>
-				<a href="https://github.com/{workspace.template.ghRepoOwner}/{workspace.template.ghRepoName}" target="_blank" class="flex items-center gap-1">
+				<a
+					href="https://github.com/{workspace.template.ghRepoOwner}/{workspace.template.ghRepoName}"
+					target="_blank"
+					class="flex items-center gap-1"
+				>
 					<GithubIcon class="w-4" />
 					{workspace.template.name}
 				</a>
@@ -189,19 +146,21 @@
 				Owned by {@render username(workspace.ownerInfo)}
 			</Badge>
 		{/if} -->
-		<div class="flex gap-2">
-			{#if workspace.cpusLimit !== undefined}
-				<Badge variant="outline">
-					CPUs: {workspace.cpusLimit}
-				</Badge>
-			{/if}
+		{#if workspace.usageLimits}
+			<div class="flex gap-2">
+				{#if workspace.usageLimits.cpusLimit !== undefined}
+					<Badge variant="outline">
+						CPUs: {workspace.usageLimits.cpusLimit}
+					</Badge>
+				{/if}
 
-			{#if workspace.memoryLimitGiB !== undefined}
-				<Badge variant="outline">
-					Memory: {workspace.memoryLimitGiB} GiB
-				</Badge>
-			{/if}
-		</div>
+				{#if workspace.usageLimits.memoryLimitGiB !== undefined}
+					<Badge variant="outline">
+						Memory: {workspace.usageLimits.memoryLimitGiB} GiB
+					</Badge>
+				{/if}
+			</div>
+		{/if}
 	</Card.Header>
 
 	<Card.Footer class="flex gap-2">
@@ -212,7 +171,7 @@
 			</Button>
 		{/if}
 		{#if workspace.state === 'exited' || workspace.state === 'created'}
-			<Button onclick={() => startWorkspace()} variant="outline" disabled={starting}>
+			<Button onclick={start} variant="outline" disabled={starting}>
 				<PlayIcon />
 				Start
 				{#if starting}
@@ -220,7 +179,7 @@
 				{/if}
 			</Button>
 		{:else if workspace.state === 'running'}
-			<Button onclick={() => stopWorkspace()} variant="outline" disabled={stopping}>
+			<Button onclick={stop} variant="outline" disabled={stopping}>
 				<MonitorXIcon />
 				Stop
 				{#if stopping}
@@ -233,7 +192,7 @@
 			<AlertDialog.Root>
 				<AlertDialog.Trigger
 					class={buttonVariants({ variant: 'outline' })}
-					disabled={deleting || yourID !== workspace.ownerUuid}
+					disabled={deleting || yourID !== workspace.owner.uuid}
 				>
 					<OctagonMinusIcon />
 					Delete
@@ -250,7 +209,7 @@
 					</AlertDialog.Header>
 					<AlertDialog.Footer>
 						<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-						<AlertDialog.Action onclick={() => deleteWorkspace()}>Continue</AlertDialog.Action>
+						<AlertDialog.Action onclick={deleteMe}>Continue</AlertDialog.Action>
 					</AlertDialog.Footer>
 				</AlertDialog.Content>
 			</AlertDialog.Root>
@@ -260,9 +219,9 @@
 			<Sheet.Trigger class={buttonVariants({ variant: 'outline' })}>
 				<Share2Icon />
 				Share
-				{#if workspace.sharedUserUuids.length > 0}
+				{#if workspace.sharedUsers.length > 0}
 					<Badge class="h-5 min-w-5 rounded-full px-1 tabular-nums" variant="outline">
-						{workspace.sharedUserUuids.length}
+						{workspace.sharedUsers.length}
 					</Badge>
 				{/if}
 			</Sheet.Trigger>
@@ -275,16 +234,12 @@
 				<div class="px-4">
 					<div class="text-sm font-medium">Owner</div>
 
-					{#if workspace.ownerInfo}
-						{@render userCard(workspace.ownerInfo, workspace.ownerUuid)}
-					{/if}
+					{@render userCard(workspace.owner)}
 
 					<div class="mt-4 text-sm font-medium">Shared with</div>
 
-					{#each workspace.sharedUserUuids as sharedId (sharedId)}
-						{#if workspace.sharedUsersInfo.get(sharedId)}
-							{@render userCard(workspace.sharedUsersInfo.get(sharedId)!, sharedId)}
-						{/if}
+					{#each workspace.sharedUsers as sharedUser (sharedUser.uuid)}
+						{@render userCard(sharedUser)}
 					{/each}
 
 					<Popover.Root bind:open={addSharedUserPopoverOpen}>
@@ -318,29 +273,33 @@
 			</Sheet.Content>
 		</Sheet.Root>
 
-		{#if stats?.cpuUsage !== undefined}
-			CPU Usage: {percentFormatter.format(stats.cpuUsage)}
-		{/if}
-		{#if stats?.memoryUsage !== undefined}
-			Memory Usage: {percentFormatter.format(stats.memoryUsage)}
+		{#if statsQuery.ready}
+			{#if statsQuery.current.isOk()}
+				{@render stats(statsQuery.current.value)}
+			{:else}
+				Failed to get stats: {statsQuery.current.error.message}
+			{/if}
 		{/if}
 	</Card.Footer>
 </Card.Root>
 
-{#snippet username({ name, login }: GitHubUserInfo)}
-	{#if name}
-		{name} ({login})
-	{:else}
-		{login}
-	{/if}
-{/snippet}
-
-{#snippet userCard(githubUserInfo: GitHubUserInfo, userUuid: Uuid)}
+{#snippet userCard({
+	uuid: userUuid,
+	name,
+	ghId,
+	ghLogin
+}: {
+	uuid: Uuid;
+	name: string | null;
+	ghId: number;
+	ghLogin: string;
+})}
 	<div class="flex items-center gap-2 p-2">
-		<GithubAvatar ghId={githubUserInfo.id} ghLogin={githubUserInfo.login} />
+		<GithubAvatar {ghId} {ghLogin} />
 
-		{@render username(githubUserInfo)}
-		{#if userUuid !== workspace.ownerUuid}
+		{name ?? ghLogin}
+
+		{#if userUuid !== workspace.owner.uuid}
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger>
 					{#snippet child({ props })}
@@ -352,13 +311,13 @@
 
 				<DropdownMenu.Content align="end">
 					<DropdownMenu.Group>
-						{#if yourID === workspace.ownerUuid && userUuid !== yourID}
+						{#if yourID === workspace.owner.uuid && userUuid !== yourID}
 							<DropdownMenu.Item>
 								<UsersIcon />
 								Transfer ownership
 							</DropdownMenu.Item>
 						{/if}
-						{#if userUuid !== workspace.ownerUuid}
+						{#if userUuid !== workspace.owner.uuid}
 							<DropdownMenu.Item onclick={() => removeSharedUser(userUuid)}>
 								<UserMinusIcon />
 								Remove access
@@ -369,4 +328,13 @@
 			</DropdownMenu.Root>
 		{/if}
 	</div>
+{/snippet}
+
+{#snippet stats({ cpuUsage, memoryUsage }: { cpuUsage?: number; memoryUsage?: number })}
+	{#if cpuUsage !== undefined}
+		CPU Usage: {percentFormatter.format(cpuUsage)}
+	{/if}
+	{#if memoryUsage !== undefined}
+		Memory Usage: {percentFormatter.format(memoryUsage)}
+	{/if}
 {/snippet}

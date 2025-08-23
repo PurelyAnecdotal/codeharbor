@@ -14,6 +14,9 @@ const config = {
 		adapter: adapter(),
 		csrf: {
 			checkOrigin: false
+		},
+		experimental: {
+			remoteFunctions: true
 		}
 	}
 };

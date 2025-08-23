@@ -1,8 +1,12 @@
+import z from 'zod';
+
 export type Uuid = `${string}-${string}-${string}-${string}-${string}`;
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const isUuid = (str: string): str is Uuid => uuidRegex.test(str);
+
+export const zUuid = () => z.uuidv4().transform((val) => val as Uuid);
 
 export const nameRegex = /^[a-z ,.'-]{5,30}$/i;
 export const letterRegex = /[a-z]+/i;

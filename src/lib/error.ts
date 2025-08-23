@@ -1,4 +1,4 @@
-import { ResultAsync } from "neverthrow";
+import { ResultAsync } from 'neverthrow';
 
 const errorMessages = {
 	UnknownError: 'An unknown error occurred',
@@ -15,9 +15,12 @@ const errorMessages = {
 	ContainerNotFoundError: 'Container not found',
 	ContainerNotRunningError: 'Container is not running',
 	OctokitError: 'Error communicating with GitHub',
+	OctokitInitError: 'Failed to initialize Octokit',
 	RequestValidationError: 'Request validation failed',
 	TemplateNotFoundError: 'Template not found',
 	GitCloneError: 'Git clone failed',
+	WorkspaceNotFoundError: 'Workspace not found',
+	WorkspaceAccessError: 'You do not have access to this workspace'
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 
@@ -47,14 +50,15 @@ export const hideCause = <Tag extends ErrorTypes>(taggedError: Tagged<Tag>): Tag
 	message: taggedError.message
 });
 
-export const wrapDB = <T>(dbPromise: PromiseLike<T>) =>
-	ResultAsync.fromPromise(dbPromise, (err) => tagged('DBError', err));
+export const catchWithTag = <T, Tag extends ErrorTypes>(
+	promise: PromiseLike<T>,
+	tag: Tag
+): ResultAsync<T, Tagged<Tag>> => ResultAsync.fromPromise(promise, (err) => tagged(tag, err));
+
+export const wrapDB = <T>(dbPromise: PromiseLike<T>) => catchWithTag(dbPromise, 'DBError');
 
 export const wrapDockerode = <T>(dockerodePromise: PromiseLike<T>) =>
-	ResultAsync.fromPromise(dockerodePromise, (err) => tagged('DockerodeError', err));
+	catchWithTag(dockerodePromise, 'DockerodeError');
 
 export const wrapOctokit = <T>(octokitPromise: PromiseLike<T>) =>
-	ResultAsync.fromPromise(octokitPromise, (err) => tagged('OctokitError', err));
-
-export const catchWithTag = <T, Tag extends ErrorTypes>(promise: PromiseLike<T>, tag: Tag): ResultAsync<T, Tagged<Tag>> =>
-	ResultAsync.fromPromise(promise, (err) => tagged(tag, err));
+	catchWithTag(octokitPromise, 'OctokitError');

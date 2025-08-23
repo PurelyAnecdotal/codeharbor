@@ -2,7 +2,7 @@ import { OPENVSCODE_SERVER_MOUNT_PATH } from '$env/static/private';
 import { tagged, wrapDB, wrapOctokit, type Tagged } from '$lib/error';
 import type { InferAsyncOk } from '$lib/result';
 import { db } from '$lib/server/db';
-import { templates, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
+import { templates, users, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
 import { jsonGroupArray } from '$lib/server/db/utils';
 import {
 	containerCreate,
@@ -13,16 +13,15 @@ import {
 	getContainerResourceLimits,
 	listContainers
 } from '$lib/server/docker';
-import { getGitHubUserInfo } from '$lib/server/octokit';
 import { getGhRepoNameFromTemplate } from '$lib/server/templates';
-import { githubRepoRegex, type ContainerState, type GitHubUserInfo, type Uuid } from '$lib/types';
+import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
-import { eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { union } from 'drizzle-orm/sqlite-core';
 import { Result, ResultAsync, err, ok, okAsync, safeTry } from 'neverthrow';
 import z from 'zod';
 
-export const getWorkspacesForWorkspaceList = (userUuid: Uuid, octokit: Octokit) =>
+export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
 	safeTry(async function* () {
 		const workspaceUuids = yield* getAccessibleWorkspaceUuids(userUuid);
 
@@ -32,9 +31,16 @@ export const getWorkspacesForWorkspaceList = (userUuid: Uuid, octokit: Octokit) 
 					...getTableColumns(workspaces),
 					sharedUserUuids: jsonGroupArray(workspacesToSharedUsers.userUuid),
 					template: {
+						uuid: templates.uuid,
 						name: templates.name,
 						ghRepoName: templates.ghRepoName,
 						ghRepoOwner: templates.ghRepoOwner
+					},
+					owner: {
+						uuid: users.uuid,
+						name: users.name,
+						ghId: users.ghId,
+						ghLogin: users.ghLogin
 					}
 				})
 				.from(workspaces)
@@ -44,7 +50,24 @@ export const getWorkspacesForWorkspaceList = (userUuid: Uuid, octokit: Octokit) 
 					eq(workspaces.uuid, workspacesToSharedUsers.workspaceUuid)
 				)
 				.leftJoin(templates, eq(workspaces.templateUuid, templates.uuid))
+				.innerJoin(users, eq(workspaces.ownerUuid, users.uuid))
 				.groupBy(workspaces.uuid)
+		);
+
+		const allSharedUserUuids = [
+			...new Set(workspacesData.map((workspace) => workspace.sharedUserUuids).flat())
+		];
+
+		const sharedUserEntries = yield* wrapDB(
+			db
+				.select({
+					uuid: users.uuid,
+					name: users.name,
+					ghId: users.ghId,
+					ghLogin: users.ghLogin
+				})
+				.from(users)
+				.where(inArray(users.uuid, allSharedUserUuids))
 		);
 
 		const containersList = yield* listContainers();
@@ -76,43 +99,26 @@ export const getWorkspacesForWorkspaceList = (userUuid: Uuid, octokit: Octokit) 
 					if (state === 'running' && bridge && bridge.IPAddress !== '')
 						url = `http://${bridge.IPAddress}:3000/?folder=${workspace.folder}`;
 
-					const usageLimitsPromise = getContainerResourceLimits(workspace.dockerId).unwrapOr(
-						undefined
+					const sharedUsers = sharedUserEntries.filter(({ uuid }) =>
+						workspace.sharedUserUuids.includes(uuid)
 					);
 
-					return {
-						...workspace,
-						state,
-						url,
-						sharedUsersInfo: await getGitHubUserNameInfos(workspace.sharedUserUuids, octokit),
-						ownerInfo: await getGitHubUserInfo(workspace.ownerUuid, octokit).unwrapOr(undefined),
-						cpusLimit: (await usageLimitsPromise)?.cpusLimit,
-						memoryLimitGiB: (await usageLimitsPromise)?.memoryLimitGiB
-					};
+					const usageLimits = await getContainerResourceLimits(workspace.dockerId).unwrapOr(null);
+
+					const { sharedUserUuids, ownerUuid, ...restWorkspace } = workspace;
+
+					const workspaceContainerInfo = { ...restWorkspace, state, url, sharedUsers, usageLimits };
+
+					return workspaceContainerInfo;
 				})
 		);
 
 		return ok(workspaceContainerInfos);
 	});
 
-export type WorkspaceContainerInfo = InferAsyncOk<ReturnType<typeof getWorkspacesForWorkspaceList>>[0];
-
-const getGitHubUserNameInfos = async (userUuids: Uuid[], octokit: Octokit) =>
-	new Map(
-		(
-			await Promise.all(
-				userUuids
-					.map(
-						(userUuid) =>
-							[userUuid, getGitHubUserInfo(userUuid, octokit).unwrapOr(undefined)] as const
-					)
-					.map(async ([id, promise]) => {
-						const userInfo = await promise;
-						return userInfo ? ([id, userInfo] as const) : undefined;
-					})
-			)
-		).filter((entry): entry is readonly [Uuid, GitHubUserInfo] => entry !== undefined)
-	);
+export type WorkspaceContainerInfo = InferAsyncOk<
+	ReturnType<typeof getWorkspacesForWorkspaceList>
+>[0];
 
 export async function validateWorkspaceAccess(
 	userUuid: Uuid,
@@ -122,37 +128,63 @@ export async function validateWorkspaceAccess(
 		db
 			.select({
 				ownerUuid: workspaces.ownerUuid,
-				dockerId: workspaces.dockerId
+				dockerId: workspaces.dockerId,
+				sharedUserUuids: jsonGroupArray(workspacesToSharedUsers.userUuid)
 			})
 			.from(workspaces)
 			.where(eq(workspaces.uuid, workspaceUuid))
+			.leftJoin(workspacesToSharedUsers, eq(workspaces.uuid, workspacesToSharedUsers.workspaceUuid))
 	);
 
-	const sharedUserUuidsResult = await getWorkspaceSharedUsers(workspaceUuid);
-
-	if (workspaceSelectResult.isErr() || sharedUserUuidsResult.isErr())
+	if (workspaceSelectResult.isErr())
 		return err(new Response('Database Error', { status: 500 }));
 
 	const workspaceSelect = workspaceSelectResult.value;
-	const sharedUserUuids = sharedUserUuidsResult.value;
 
 	if (workspaceSelect[0] === undefined)
 		return err(new Response('Workspace not found', { status: 404 }));
 
 	const workspace = workspaceSelect[0];
 
-	if (workspace.ownerUuid !== userUuid && !sharedUserUuids.includes(userUuid))
+	if (workspace.ownerUuid !== userUuid && !workspace.sharedUserUuids.includes(userUuid))
 		return err(new Response('Forbidden', { status: 403 }));
 
-	return ok({ ...workspace, sharedUserUuids });
+	return ok(workspace);
 }
+
+export const validateWorkspaceAccessSafeTry = (userUuid: Uuid, workspaceUuid: Uuid) =>
+	safeTry(async function* () {
+		const workspaceSelect = yield* wrapDB(
+			db
+				.select({
+					ownerUuid: workspaces.ownerUuid,
+					dockerId: workspaces.dockerId,
+					sharedUserUuids: jsonGroupArray(workspacesToSharedUsers.userUuid)
+				})
+				.from(workspaces)
+				.where(eq(workspaces.uuid, workspaceUuid))
+				.leftJoin(
+					workspacesToSharedUsers,
+					eq(workspaces.uuid, workspacesToSharedUsers.workspaceUuid)
+				)
+		);
+
+		if (workspaceSelect[0] === undefined) return err(tagged('WorkspaceNotFoundError'));
+
+		const workspace = workspaceSelect[0];
+
+		if (workspace.ownerUuid !== userUuid && !workspace.sharedUserUuids.includes(userUuid))
+			return err(tagged('WorkspaceAccessError'));
+
+		return ok(workspace);
+	});
 
 export const WorkspaceCreateOptions = z.object({
 	name: z.string(),
 	source: z.discriminatedUnion('type', [
 		z.object({
 			type: z.literal('template'),
-			templateUuid: z.uuidv4().transform((val) => val as Uuid)
+			templateUuid: zUuid()
 		}),
 		z.object({
 			type: z.literal('github'),
@@ -307,17 +339,6 @@ const createWorkspaceContainer = (workspaceUuid: Uuid, workspaceVolumeMountDir: 
 		// User: 'vscode'
 	});
 
-const getWorkspaceSharedUsers = (workspaceUuid: Uuid) =>
-	wrapDB(
-		db
-			.select({
-				sharedUserUuids: sql<Uuid[]>`json_group_array(${workspacesToSharedUsers.userUuid})`
-			})
-			.from(workspacesToSharedUsers)
-			.where(eq(workspacesToSharedUsers.workspaceUuid, workspaceUuid))
-			.groupBy(workspacesToSharedUsers.workspaceUuid)
-	).map((v) => v[0]?.sharedUserUuids ?? []);
-
 const getAccessibleWorkspaceUuids = (userUuid: Uuid) =>
 	wrapDB(
 		union(
@@ -335,3 +356,18 @@ const getAccessibleWorkspaceUuids = (userUuid: Uuid) =>
 				.where(eq(workspacesToSharedUsers.userUuid, userUuid))
 		)
 	).map((workspaces) => workspaces.map((x) => x.uuid));
+
+export const addWorkspaceSharedUser = (workspaceUuid: Uuid, userUuidToAdd: Uuid) =>
+	wrapDB(db.insert(workspacesToSharedUsers).values({ userUuid: userUuidToAdd, workspaceUuid }));
+
+export const removeWorkspaceSharedUser = (workspaceUuid: Uuid, userUuidToRemove: Uuid) =>
+	wrapDB(
+		db
+			.delete(workspacesToSharedUsers)
+			.where(
+				and(
+					eq(workspacesToSharedUsers.workspaceUuid, workspaceUuid),
+					eq(workspacesToSharedUsers.userUuid, userUuidToRemove)
+				)
+			)
+	);

@@ -1,26 +1,47 @@
 <script lang="ts">
 	import * as Alert from '$lib/components/ui/alert';
 	import Button from '$lib/components/ui/button/button.svelte';
-	import Workspace from '$lib/components/Workspace.svelte';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import Workspace from './Workspace.svelte';
+	import { getWorkspaces } from './workspaces.remote';
 
-	let { data } = $props();
+	type WorkspacesRes = Awaited<ReturnType<typeof getWorkspaces>>;
 
-	const workspacesRes = $derived(data.workspaces);
+	const workspacesListQuery = getWorkspaces();
 </script>
 
 <div class="space-y-4">
 	<div class="flex gap-4">
 		<h1 class="text-3xl">Workspaces</h1>
 
-		{#if workspacesRes.isOk()}
-			<Button href="/templates" variant={workspacesRes.value.length === 0 ? 'default' : 'outline'}>
-				<PlusIcon /> New Workspace
-			</Button>
+		{#if workspacesListQuery.ready}
+			{@render newWorkspace(workspacesListQuery.current)}
+		{:else}
+			{@render newWorkspaceButton()}
 		{/if}
 	</div>
 
+	{#if workspacesListQuery.ready}
+		{@render workspacesList(workspacesListQuery.current)}
+	{:else}
+		<p class="text-gray-500">Loading workspaces...</p>
+	{/if}
+</div>
+
+{#snippet newWorkspace(workspacesRes: WorkspacesRes)}
+	{#if workspacesRes.isOk()}
+		{@render newWorkspaceButton(workspacesRes.value.length === 0)}
+	{/if}
+{/snippet}
+
+{#snippet newWorkspaceButton(highlight = false)}
+	<Button href="/templates" variant={highlight ? 'default' : 'outline'}>
+		<PlusIcon /> New Workspace
+	</Button>
+{/snippet}
+
+{#snippet workspacesList(workspacesRes: WorkspacesRes)}
 	{#if workspacesRes.isOk()}
 		{#each workspacesRes.value as workspace (workspace.uuid)}
 			<Workspace {workspace} />
@@ -36,4 +57,4 @@
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
-</div>
+{/snippet}

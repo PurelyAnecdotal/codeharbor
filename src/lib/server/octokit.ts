@@ -9,7 +9,7 @@ import { users } from './db/schema';
 export const initOctokit = (accessToken: string) =>
 	Result.fromThrowable(
 		(...rest) => new Octokit(...rest),
-		(err) => tagged('OctokitError', err)
+		(err) => tagged('OctokitInitError', err)
 	)({ auth: accessToken, userAgent: 'annex/0.0' });
 
 export const getGitHubUserInfo = (userUuid: Uuid, octokit: Octokit) =>
