@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import GithubAvatar from '$lib/components/GithubAvatar.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
@@ -30,7 +31,6 @@
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { toast } from 'svelte-sonner';
-	import GithubAvatar from '../../../lib/components/GithubAvatar.svelte';
 	import {
 		deleteWorkspace,
 		getWorkspaces,
@@ -103,6 +103,12 @@
 	});
 
 	const statsQuery = getWorkspaceStats(workspace.uuid);
+
+	const pageUrlObj = new URL(page.url);
+
+	const openVSCodeServerPort = 3000;
+
+	const uuidUrl = `${pageUrlObj.protocol}//${workspace.uuid}-${openVSCodeServerPort}.${pageUrlObj.host}/?folder=${workspace.folder}`;
 </script>
 
 <Card.Root>
@@ -165,7 +171,7 @@
 
 	<Card.Footer class="flex gap-2">
 		{#if workspace.url}
-			<Button href={workspace.url} target="_blank">
+			<Button href={uuidUrl} target="_blank">
 				<ScreenShareIcon />
 				Open
 			</Button>

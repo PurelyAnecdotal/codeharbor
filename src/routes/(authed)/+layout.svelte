@@ -3,5 +3,5 @@
 </script>
 
 <div class="m-8">
-	{@render children()}
+	<svelte:boundary>{@render children()}</svelte:boundary>
 </div>

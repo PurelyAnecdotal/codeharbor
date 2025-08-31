@@ -20,14 +20,16 @@ import { ok, safeTry } from 'neverthrow';
 import z from 'zod';
 
 export const getWorkspaces = query(() =>
-	safeTry(async function* () {
-		const { user } = getRequestEvent().locals;
-		if (!user) redirect(307, '/');
+	RAtoJ(
+		safeTry(async function* () {
+			const { user } = getRequestEvent().locals;
+			if (!user) redirect(307, '/');
 
-		const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
+			const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
 
-		return ok(workspacesList);
-	})
+			return ok(workspacesList);
+		})
+	)
 );
 
 export const getWorkspaceStats = query(zUuid(), (workspaceUuid) =>

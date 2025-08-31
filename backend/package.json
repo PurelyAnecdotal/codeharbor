@@ -1,13 +1,19 @@
 {
 	"name": "annex-backend",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
 	"scripts": {
 		"dev": "bun run --hot src/index.ts"
 	},
 	"dependencies": {
-		"@hono/auth-js": "^1.0.16",
-		"hono": "^4.7.10"
+		"@oslojs/crypto": "^1.0.1",
+		"@oslojs/encoding": "^1.1.0",
+		"dockerode": "^4.0.7",
+		"drizzle-orm": "^0.44.5",
+		"hono": "^4.9.5"
 	},
 	"devDependencies": {
-		"@types/bun": "latest"
+		"@types/bun": "1.2.21"
 	}
 }

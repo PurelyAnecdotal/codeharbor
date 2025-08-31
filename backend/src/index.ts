@@ -1,78 +1,133 @@
-import GitHub from '@auth/core/providers/github';
-import { initAuthConfig } from '@hono/auth-js';
-import type { ServerWebSocket } from 'bun';
-import { Hono } from 'hono';
-import { createBunWebSocket } from 'hono/bun';
+import { fetch } from 'bun';
+import Dockerode from 'dockerode';
+import { eq } from 'drizzle-orm';
+import { type Context, Hono, type Next } from 'hono';
+import { upgradeWebSocket, websocket } from 'hono/bun';
 import { proxy } from 'hono/proxy';
+import { authMiddleware } from './auth.js';
+import { db } from './db.js';
+import { workspaces } from './schema.js';
 
-const app = new Hono();
+const rootDomain = 'annex.localhost';
+const port = 5110;
+const frontendServer = 'localhost:5173';
 
-const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
+type Uuid = `${string}-${string}-${string}-${string}-${string}`;
 
-app.use(
-	'*',
-	initAuthConfig((c) => ({
-		secret: c.env.AUTH_SECRET,
-		providers: [
-			GitHub({
-				clientId: c.env.GITHUB_ID,
-				clientSecret: c.env.GITHUB_SECRET
-			})
-		]
-	}))
-);
+interface Variables {
+	userUuid: string;
+}
 
-// app.use('/api/auth/*', authHandler());
+const app = new Hono<{ Variables: Variables }>();
 
-// app.use('/api/*', verifyAuth());
+app.use('*', authMiddleware);
 
-// app.get('/api/protected', (c) => {
-// 	const auth = c.get('authUser');
-// 	return c.json(auth);
-// });
+const docker = new Dockerode();
 
-// app.get('/', (c) => c.text('Hono!'));
+const workspaceSubdomainRegex =
+	/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}-[0-9]{1,5}$/;
 
-const originServer = '172.17.0.2:3000';
+app.all('*', async (c, next) => {
+	const urlObj = new URL(c.req.url);
 
-app.get('/instance', () => proxy(`http://${originServer}/instance`));
+	if (!urlObj.hostname.endsWith(rootDomain)) return c.text('Invalid host', 400);
 
-app.get(
-	'/instance/*',
+	if (urlObj.hostname === rootDomain) {
+		if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(frontendServer, c, next);
+
+		return proxy(`http://${frontendServer}${c.req.path}${urlObj.search}`, {
+			...c.req,
+			customFetch: (req) => fetch(req, { redirect: 'manual' })
+		});
+	}
+
+	const suffix = `.${rootDomain}`;
+	const subdomain = urlObj.hostname.slice(0, -suffix.length);
+	if (urlObj.hostname.endsWith(suffix) && workspaceSubdomainRegex.test(subdomain)) {
+		const uuid = subdomain.split('-').slice(0, -1).join('-') as Uuid;
+
+		const port = parseInt(subdomain.split('-').slice(-1)[0]!);
+		if (port > 65535) return c.text('Invalid port', 400);
+
+		return proxyWorkspace(uuid, port, c, next);
+	}
+
+	return c.text('Invalid host', 400);
+});
+
+async function proxyWorkspace(uuid: Uuid, port: number, c: Context, next: Next) {
+	const [workspace] = await db.select().from(workspaces).where(eq(workspaces.uuid, uuid));
+	if (!workspace) return c.text('Workspace not found', 404);
+
+	// TODO: check user access to workspace
+
+	let data: Dockerode.ContainerInspectInfo;
+	try {
+		data = await docker.getContainer(workspace.dockerId).inspect(); // TODO: cache this
+	} catch (e) {
+		console.error(e);
+		return c.text('Error inspecting docker container', 500);
+	}
+
+	const bridge = data.NetworkSettings.Networks['bridge'];
+	if (!bridge) return c.text('Bridge network not found', 500);
+
+	const containerHost = `${bridge.IPAddress}:${port}`;
+
+	if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(containerHost, c, next);
+
+	const urlObj = new URL(c.req.url);
+
+	return proxy(`http://${containerHost}${c.req.path}${urlObj.search}`, {
+		...c.req,
+		customFetch: (req) => fetch(req, { redirect: 'manual' })
+	});
+}
+
+const proxyWebsocket = (destHost: string, c: Context, next: Next) =>
 	upgradeWebSocket((c) => {
-		const targetWs = new WebSocket(`ws://${originServer}/${c.req.path}`);
+		const search = new URL(c.req.url).search;
+
+		const protocol = c.req.header('Sec-WebSocket-Protocol');
+
+		const serverWs = new WebSocket(`ws://${destHost}${c.req.path}${search}`, protocol);
+
+		const serverWsReady: Promise<Event> = new Promise((resolve) => {
+			serverWs.addEventListener('open', (event) => {
+				resolve(event);
+			});
+		});
 
 		return {
-			onOpen(_event, ws) {
-				targetWs.addEventListener('message', (event) => {
-					ws.send(event.data);
+			onOpen(_event, clientWs) {
+				console.debug('client connected');
+
+				serverWs.addEventListener('message', (event) => {
+					if (clientWs.readyState === WebSocket.OPEN) clientWs.send(event.data);
 				});
 
-				targetWs.addEventListener('close', ({ code, reason }) => ws.close(code, reason));
+				serverWs.addEventListener('close', ({ code, reason }) => {
+					clientWs.close(code, reason);
+				});
 
-				targetWs.addEventListener('error', () => ws.close(1014, 'proxied ws error'));
+				serverWs.addEventListener('error', () => {
+					clientWs.close(1014, 'proxied ws error');
+				});
 			},
 
-			onMessage(event) {
-				targetWs.send(event.data);
+			async onMessage(event) {
+				await serverWsReady;
+				if (serverWs.readyState === WebSocket.OPEN) serverWs.send(event.data);
 			},
 
 			onClose({ code, reason }) {
-				targetWs.close(code, reason);
+				serverWs.close(code, reason);
 			},
 
 			onError() {
-				targetWs.close(1014, 'client ws error');
+				serverWs.close(1014, 'client ws error');
 			}
 		};
-	})
-);
+	})(c, next);
 
-app.get('/instance/*', (c) => proxy(`http://${originServer}/${c.req.path}`));
-
-app.get('/*', (c) => proxy(`http://localhost:5173/${c.req.path}`));
-
-export default {
-	fetch: app.fetch,
-	websocket
-};
+export default { fetch: app.fetch, websocket, port };

@@ -1,14 +1,17 @@
 <script lang="ts">
 	import * as Alert from '$lib/components/ui/alert';
 	import Button from '$lib/components/ui/button/button.svelte';
+	import { JtoR } from '$lib/result';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Workspace from './Workspace.svelte';
 	import { getWorkspaces } from './workspaces.remote';
 
-	type WorkspacesRes = Awaited<ReturnType<typeof getWorkspaces>>;
+	type WorkspacesRes = NonNullable<typeof current>;
 
 	const workspacesListQuery = getWorkspaces();
+
+	const current = $derived(workspacesListQuery.ready ? JtoR(workspacesListQuery.current) : undefined)
 </script>
 
 <div class="space-y-4">
@@ -16,14 +19,14 @@
 		<h1 class="text-3xl">Workspaces</h1>
 
 		{#if workspacesListQuery.ready}
-			{@render newWorkspace(workspacesListQuery.current)}
+			{@render newWorkspace(JtoR(workspacesListQuery.current))}
 		{:else}
 			{@render newWorkspaceButton()}
 		{/if}
 	</div>
 
 	{#if workspacesListQuery.ready}
-		{@render workspacesList(workspacesListQuery.current)}
+		{@render workspacesList(JtoR(workspacesListQuery.current))}
 	{:else}
 		<p class="text-gray-500">Loading workspaces...</p>
 	{/if}
