@@ -1,7 +1,5 @@
-import {
-	AUTH_GITHUB_ID as GITHUB_CLIENT_ID,
-	AUTH_GTIHUB_SECRET as GITHUB_CLIENT_SECRET
-} from '$env/static/private';
+import { building } from '$app/environment';
+import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db';
 import { sessions, users, type Session } from '$lib/server/db/schema';
 import type { Uuid } from '$lib/types';
@@ -86,4 +84,8 @@ export const setSessionTokenCookie = (event: RequestEvent, token: string, expire
 export const deleteSessionTokenCookie = (event: RequestEvent) =>
 	event.cookies.delete(sessionCookieName, { path: '/' });
 
-export const github = new GitHub(GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, null);
+export let github: GitHub;
+
+if (!building) {
+	github = new GitHub(env.AUTH_GITHUB_ID, env.AUTH_GTIHUB_SECRET, null);
+}

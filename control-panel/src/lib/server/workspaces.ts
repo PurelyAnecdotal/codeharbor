@@ -1,6 +1,6 @@
-import { OPENVSCODE_SERVER_MOUNT_PATH } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { tagged, wrapDB, wrapOctokit, type Tagged } from '$lib/error';
-import type { InferAsyncOk } from '$lib/result';
+import { type InferAsyncOk } from '$lib/result';
 import { db } from '$lib/server/db';
 import { templates, users, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
 import { jsonGroupArray } from '$lib/server/db/utils';
@@ -16,9 +16,9 @@ import {
 import { getGhRepoNameFromTemplate } from '$lib/server/templates';
 import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
-import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { union } from 'drizzle-orm/sqlite-core';
-import { Result, ResultAsync, err, ok, okAsync, safeTry } from 'neverthrow';
+import { err, ok, okAsync, Result, ResultAsync, safeTry } from 'neverthrow';
 import z from 'zod';
 
 export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
@@ -136,8 +136,7 @@ export async function validateWorkspaceAccess(
 			.leftJoin(workspacesToSharedUsers, eq(workspaces.uuid, workspacesToSharedUsers.workspaceUuid))
 	);
 
-	if (workspaceSelectResult.isErr())
-		return err(new Response('Database Error', { status: 500 }));
+	if (workspaceSelectResult.isErr()) return err(new Response('Database Error', { status: 500 }));
 
 	const workspaceSelect = workspaceSelectResult.value;
 
@@ -213,34 +212,12 @@ export const createWorkspace = (
 		cloneUrlObject.username = ghAccessToken;
 		const authenticatedCloneURL = cloneUrlObject.toString();
 
-		// Create git clone container
-
-		console.log(`Creating git clone container for ${ghRepoOwner}/${ghRepoName}...`);
+		console.log(`Cloning git repository ${ghRepoOwner}/${ghRepoName}...`);
 
 		const workspaceUuid = crypto.randomUUID();
+		const volumeName = `annex-${workspaceUuid}`;
 
-		const gitContainer = yield* await createGitCloneContainer(workspaceUuid, authenticatedCloneURL);
-
-		// Start git clone container
-
-		yield* await containerStart(gitContainer.id);
-
-		// Wait for git clone container to finish
-
-		yield* await containerWait(gitContainer.id);
-
-		// Inspect git clone container to check if it completed successfully
-
-		const gitContainerInspectInfo = yield* await containerInspect(gitContainer.id);
-
-		if (gitContainerInspectInfo.State?.ExitCode !== 0)
-			return err(tagged('GitCloneError', gitContainerInspectInfo.State.Error));
-
-		// Remove git clone container
-
-		containerRemove(gitContainer.id).orTee((err) =>
-			console.error('Failed to remove git container:', err)
-		);
+		yield* cloneGitRepoIntoVolume(authenticatedCloneURL, volumeName);
 
 		// Create workspace container
 
@@ -290,27 +267,48 @@ function getGhRepoNameFromWorkspaceSource(
 
 const gitImage = 'cgr.dev/chainguard/git';
 
-const createGitCloneContainer = (workspaceUuid: Uuid, cloneUrl: string) =>
-	containerCreate({
-		Image: gitImage,
-		name: `annex-git-clone-${workspaceUuid}`,
-		HostConfig: {
-			Mounts: [
-				{
-					Type: 'volume',
-					Source: `annex-${workspaceUuid}`,
-					Target: '/home/git'
-				}
-			]
-		},
-		Entrypoint: ['/bin/sh', '-c', `exec /usr/bin/git clone ${cloneUrl} /home/git`, '--']
+const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
+	safeTry(async function* () {
+		const gitContainer = yield* containerCreate({
+			Image: gitImage,
+			name: `annex-git-clone-${volumeName}`,
+			HostConfig: {
+				Mounts: [
+					{
+						Type: 'volume',
+						Source: volumeName,
+						Target: '/home/git'
+					}
+				]
+			},
+			Entrypoint: ['/bin/sh', '-c', `exec /usr/bin/git clone ${cloneUrl} /home/git`, '--']
+		});
+
+		yield* await containerStart(gitContainer.id);
+
+		yield* await containerWait(gitContainer.id);
+
+		const gitContainerInspectInfo = yield* await containerInspect(gitContainer.id);
+
+		if (gitContainerInspectInfo.State?.ExitCode !== 0)
+			return err(tagged('GitCloneError', gitContainerInspectInfo.State.Error));
+
+		containerRemove(gitContainer.id).orTee((err) =>
+			console.error('Failed to remove git container:', err)
+		);
+
+		return ok();
 	});
 
 const gibi = 1024 ** 3;
 
-const createWorkspaceContainer = (workspaceUuid: Uuid, workspaceVolumeMountDir: string) =>
+const createWorkspaceContainer = (
+	workspaceUuid: Uuid,
+	workspaceVolumeMountDir: string,
+	image?: string
+) =>
 	containerCreate({
-		Image: 'mcr.microsoft.com/devcontainers/base',
+		Image: image ?? 'mcr.microsoft.com/devcontainers/base:ubuntu',
 		name: `annex-code-server-${workspaceUuid}`,
 		// Env: ['CODE_ARGS=--server-base-path /instance'],
 		HostConfig: {
@@ -322,13 +320,14 @@ const createWorkspaceContainer = (workspaceUuid: Uuid, workspaceVolumeMountDir: 
 				},
 				{
 					Type: 'bind',
-					Source: OPENVSCODE_SERVER_MOUNT_PATH,
+					Source: env.OPENVSCODE_SERVER_MOUNT_PATH,
 					Target: '/openvscode-server',
 					ReadOnly: true
 				}
 			],
 			NanoCpus: 1 * 1e9,
-			Memory: 1 * gibi
+			Memory: 1 * gibi,
+			Init: true
 		},
 		Entrypoint: [
 			'/bin/sh',

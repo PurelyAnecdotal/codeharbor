@@ -9,6 +9,6 @@ README.md
 LICENSE
 .vscode
 .github
-# .env
-.build
-# .svelte-kit
+.env
+build
+.svelte-kit
