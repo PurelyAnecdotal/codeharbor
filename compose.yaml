@@ -2,15 +2,14 @@ name: annex
 
 services:
   control-panel:
-    build: 
+    build:
       context: .
       dockerfile: control-panel/Dockerfile
-    ports:
-      - '3000:3000'
-    env_file:
-      - control-panel/.env
     environment:
-      - ORIGIN=http://annex.localhost:5110
+      - AUTH_GITHUB_ID=${AUTH_GITHUB_ID:?error}
+      - AUTH_GITHUB_SECRET=${AUTH_GITHUB_SECRET:?error}
+      - DOCKER_GROUP_ID=${DOCKER_GROUP_ID:?error} # stat -c '%g' /var/run/docker.sock
+      - ORIGIN=http://${GATEWAY_ROOT_DOMAIN:?error}:${GATEWAY_PORT:-5110}
       - DATABASE_URL=/usr/src/app/db/local.db
     volumes:
       - type: bind
@@ -27,17 +26,20 @@ services:
       context: .
       dockerfile: gateway/Dockerfile
     ports:
-      - '5110:5110'
-    env_file:
-      - gateway/.env
+      - '${GATEWAY_PORT:-5110}:5110'
     environment:
-      - DATABASE_URL=/usr/src/app/db/local.db
-      - CONTROL_PANEL_HOST=control-panel:3000
       - GATEWAY_ROOT_DOMAIN=${GATEWAY_ROOT_DOMAIN:?error}
+      - CONTROL_PANEL_HOST=control-panel:3000
+      - DATABASE_URL=/usr/src/app/db/local.db
     volumes:
       - type: bind
         source: ./db
         target: /usr/src/app/db
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
     depends_on:
       - control-panel
+    group_add:
+      - '${DOCKER_GROUP_ID:?error}' # stat -c '%g' /var/run/docker.sock
     init: true
