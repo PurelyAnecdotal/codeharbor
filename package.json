@@ -1,0 +1,8 @@
+{
+	"name": "annex-monorepo",
+	"private": true,
+	"workspaces": [
+		"control-panel",
+		"gateway"
+	]
+}

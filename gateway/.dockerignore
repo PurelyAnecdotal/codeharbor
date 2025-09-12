@@ -1,10 +1,6 @@
 node_modules
-build
-.svelte-kit
 
 Dockerfile
 .dockerignore
 .gitignore
-.prettierignore
-.prettierrc
 .env

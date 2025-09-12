@@ -1,0 +1,43 @@
+name: annex
+
+services:
+  control-panel:
+    build: 
+      context: .
+      dockerfile: control-panel/Dockerfile
+    ports:
+      - '3000:3000'
+    env_file:
+      - control-panel/.env
+    environment:
+      - ORIGIN=http://annex.localhost:5110
+      - DATABASE_URL=/usr/src/app/db/local.db
+    volumes:
+      - type: bind
+        source: ./db
+        target: /usr/src/app/db
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    group_add:
+      - '${DOCKER_GROUP_ID:?error}' # stat -c '%g' /var/run/docker.sock
+    init: true
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - '5110:5110'
+    env_file:
+      - gateway/.env
+    environment:
+      - DATABASE_URL=/usr/src/app/db/local.db
+      - CONTROL_PANEL_HOST=control-panel:3000
+      - GATEWAY_ROOT_DOMAIN=${GATEWAY_ROOT_DOMAIN:?error}
+    volumes:
+      - type: bind
+        source: ./db
+        target: /usr/src/app/db
+    depends_on:
+      - control-panel
+    init: true
