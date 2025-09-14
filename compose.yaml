@@ -13,7 +13,7 @@ services:
       - DATABASE_URL=/usr/src/app/db/local.db
     volumes:
       - type: bind
-        source: ./db
+        source: ${DATABASE_DIR:?error}
         target: /usr/src/app/db
       - type: bind
         source: /var/run/docker.sock
