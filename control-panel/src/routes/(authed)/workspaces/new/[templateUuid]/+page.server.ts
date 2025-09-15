@@ -1,6 +1,5 @@
-import { wrapDB } from '$lib/error';
-import { db } from '$lib/server/db/index.js';
-import { templates, users, workspaces } from '$lib/server/db/schema.js';
+import { useDB } from '$lib/server/db';
+import { templates, users, workspaces } from '$lib/server/db/schema';
 import { isUuid, type Uuid } from '$lib/types';
 import { error, redirect } from '@sveltejs/kit';
 import { count, eq, getTableColumns } from 'drizzle-orm';
@@ -30,12 +29,12 @@ export async function load({ locals, params }) {
 }
 
 const countWorkspacesWithTemplate = (templateUuid: Uuid) =>
-	wrapDB(
+	useDB((db) =>
 		db.select({ count: count() }).from(workspaces).where(eq(workspaces.templateUuid, templateUuid))
 	).map((result) => result[0]?.count ?? 0);
 
 const getTemplateWithOwner = (templateUuid: Uuid) =>
-	wrapDB(
+	useDB((db) =>
 		db
 			.select({
 				...getTableColumns(templates),

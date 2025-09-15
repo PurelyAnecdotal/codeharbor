@@ -1,6 +1,5 @@
-import { wrapDB } from '$lib/error.js';
-import { db } from '$lib/server/db/index.js';
-import { users } from '$lib/server/db/schema.js';
+import { useDB } from '$lib/server/db';
+import { users } from '$lib/server/db/schema';
 import { letterRegex, nameRegex } from '$lib/types';
 import { eq } from 'drizzle-orm';
 
@@ -13,7 +12,7 @@ export async function POST({ request, locals }) {
 	if (!nameRegex.test(newName) || !letterRegex.test(newName))
 		return new Response('Name failed validation', { status: 400 });
 
-	const updateResult = await wrapDB(
+	const updateResult = await useDB((db) =>
 		db.update(users).set({ name: newName }).where(eq(users.uuid, authedUserUuid))
 	);
 

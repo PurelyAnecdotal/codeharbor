@@ -1,4 +1,4 @@
-import { ResultAsync } from 'neverthrow';
+import { Result, ResultAsync } from 'neverthrow';
 
 const errorMessages = {
 	UnknownError: 'An unknown error occurred',
@@ -20,7 +20,12 @@ const errorMessages = {
 	TemplateNotFoundError: 'Template not found',
 	GitCloneError: 'Git clone failed',
 	WorkspaceNotFoundError: 'Workspace not found',
-	WorkspaceAccessError: 'You do not have access to this workspace'
+	WorkspaceAccessError: 'You do not have access to this workspace',
+	DockerGroupIdNotSet: 'DOCKER_GROUP_ID environment variable is not set',
+	BunDatabaseOpenError: 'Bun failed to open database',
+	DrizzleInitError: 'ORM failed to initialize',
+	DatabaseUnavailableError: 'Database is unavailable during building',
+	DatabaseNotFoundError: 'Database file not found'
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 
@@ -54,8 +59,6 @@ export const catchWithTag = <T, Tag extends ErrorTypes>(
 	promise: PromiseLike<T>,
 	tag: Tag
 ): ResultAsync<T, Tagged<Tag>> => ResultAsync.fromPromise(promise, (err) => tagged(tag, err));
-
-export const wrapDB = <T>(dbPromise: PromiseLike<T>) => catchWithTag(dbPromise, 'DBError');
 
 export const wrapDockerode = <T>(dockerodePromise: PromiseLike<T>) =>
 	catchWithTag(dockerodePromise, 'DockerodeError');

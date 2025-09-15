@@ -1,6 +1,6 @@
 import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { db } from '$lib/server/db';
+import { useDB } from '$lib/server/db';
 import { sessions, users, type Session } from '$lib/server/db/schema';
 import type { Uuid } from '$lib/types';
 import { sha256 } from '@oslojs/crypto/sha2';
@@ -25,35 +25,39 @@ export async function createSession(token: string, userUuid: Uuid) {
 		expiresAt: new Date(Date.now() + DAY_IN_MS * 30)
 	};
 
-	await db.insert(sessions).values(session);
+	await useDB((db) => db.insert(sessions).values(session));
 	return session;
 }
 
 export async function validateSessionToken(token: string) {
 	const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
 
-	const [result] = await db
-		.select({
-			user: {
-				uuid: users.uuid,
-				name: users.name,
-				ghId: users.ghId,
-				ghLogin: users.ghLogin,
-				ghAccessToken: users.ghAccessToken
-			},
-			session: sessions
-		})
-		.from(sessions)
-		.innerJoin(users, eq(sessions.userUuid, users.uuid))
-		.where(eq(sessions.id, sessionId));
+	const selectResult = await useDB((db) =>
+		db
+			.select({
+				user: {
+					uuid: users.uuid,
+					name: users.name,
+					ghId: users.ghId,
+					ghLogin: users.ghLogin,
+					ghAccessToken: users.ghAccessToken
+				},
+				session: sessions
+			})
+			.from(sessions)
+			.innerJoin(users, eq(sessions.userUuid, users.uuid))
+			.where(eq(sessions.id, sessionId))
+	);
+	if (selectResult.isErr()) return { session: null, user: null };
 
+	const [result] = selectResult.value;
 	if (!result) return { session: null, user: null };
 
 	const { session, user } = result;
 	const sessionExpired = Date.now() >= session.expiresAt.getTime();
 
 	if (sessionExpired) {
-		await db.delete(sessions).where(eq(sessions.id, session.id));
+		await useDB((db) => db.delete(sessions).where(eq(sessions.id, session.id)));
 		return { session: null, user: null };
 	}
 
@@ -61,10 +65,9 @@ export async function validateSessionToken(token: string) {
 
 	if (renewSession) {
 		session.expiresAt = new Date(Date.now() + DAY_IN_MS * 30);
-		await db
-			.update(sessions)
-			.set({ expiresAt: session.expiresAt })
-			.where(eq(sessions.id, session.id));
+		await useDB((db) =>
+			db.update(sessions).set({ expiresAt: session.expiresAt }).where(eq(sessions.id, session.id))
+		);
 	}
 
 	return { session, user };
@@ -73,10 +76,7 @@ export async function validateSessionToken(token: string) {
 export type SessionValidationResult = Awaited<ReturnType<typeof validateSessionToken>>;
 
 export const invalidateSession = (sessionId: string) =>
-	db
-		.delete(sessions)
-		.where(eq(sessions.id, sessionId))
-		.then(() => {});
+	useDB((db) => db.delete(sessions).where(eq(sessions.id, sessionId)));
 
 export const setSessionTokenCookie = (event: RequestEvent, token: string, expiresAt: Date) =>
 	event.cookies.set(sessionCookieName, token, { expires: expiresAt, path: '/' });

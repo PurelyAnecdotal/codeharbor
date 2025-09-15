@@ -1,4 +1,3 @@
-import { wrapDB } from '$lib/error';
 import { safeFetch } from '$lib/fetch';
 import {
 	createSession,
@@ -6,7 +5,7 @@ import {
 	github,
 	setSessionTokenCookie
 } from '$lib/server/auth';
-import { db } from '$lib/server/db';
+import { useDB } from '$lib/server/db';
 import { blockedUsers, users } from '$lib/server/db/schema';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { OAuth2Tokens } from 'arctic';
@@ -52,7 +51,7 @@ export async function GET(event: RequestEvent) {
 
 	const { id: githubUserId, login: githubUsername, name: githubName } = githubUserData.data;
 
-	const blockedResult = await wrapDB(
+	const blockedResult = await useDB((db) =>
 		db.select().from(blockedUsers).where(eq(blockedUsers.ghId, githubUserId))
 	).map((select) => (select[0] !== undefined ? true : false));
 	if (blockedResult.isErr()) {
@@ -112,7 +111,7 @@ export async function GET(event: RequestEvent) {
 }
 
 const getUserFromGitHubId = (ghId: number) =>
-	wrapDB(db.select().from(users).where(eq(users.ghId, ghId))).map((select) => select[0]);
+	useDB((db) => db.select().from(users).where(eq(users.ghId, ghId))).map((select) => select[0]);
 
 interface UserCreateOptions {
 	name?: string;
@@ -124,7 +123,5 @@ interface UserCreateOptions {
 function createUser(options: UserCreateOptions) {
 	const uuid = crypto.randomUUID();
 
-	return wrapDB(db.insert(users).values({ uuid, ...options })).map(() => ({
-		uuid
-	}));
+	return useDB((db) => db.insert(users).values({ uuid, ...options })).map(() => ({ uuid }));
 }

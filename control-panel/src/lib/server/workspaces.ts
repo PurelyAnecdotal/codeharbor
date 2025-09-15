@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
-import { tagged, wrapDB, wrapOctokit, type Tagged } from '$lib/error';
+import { tagged, wrapOctokit, type Tagged } from '$lib/error';
 import { type InferAsyncOk } from '$lib/result';
-import { db } from '$lib/server/db';
+import { dbResult, useDB, wrapDB } from '$lib/server/db';
 import { templates, users, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
 import { jsonGroupArray } from '$lib/server/db/utils';
 import {
@@ -23,6 +23,8 @@ import z from 'zod';
 
 export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
 	safeTry(async function* () {
+		const db = yield* dbResult;
+
 		const workspaceUuids = yield* getAccessibleWorkspaceUuids(userUuid);
 
 		const workspacesData = yield* wrapDB(
@@ -124,7 +126,7 @@ export async function validateWorkspaceAccess(
 	userUuid: Uuid,
 	workspaceUuid: Uuid
 ): Promise<Result<{ ownerUuid: Uuid; sharedUserUuids: Uuid[]; dockerId: string }, Response>> {
-	const workspaceSelectResult = await wrapDB(
+	const workspaceSelectResult = await useDB((db) =>
 		db
 			.select({
 				ownerUuid: workspaces.ownerUuid,
@@ -153,6 +155,8 @@ export async function validateWorkspaceAccess(
 
 export const validateWorkspaceAccessSafeTry = (userUuid: Uuid, workspaceUuid: Uuid) =>
 	safeTry(async function* () {
+		const db = yield* dbResult;
+
 		const workspaceSelect = yield* wrapDB(
 			db
 				.select({
@@ -202,6 +206,8 @@ export const createWorkspace = (
 	ghAccessToken: string
 ) =>
 	safeTry(async function* () {
+		const db = yield* dbResult;
+
 		const { ghRepoOwner, ghRepoName } = yield* await getGhRepoNameFromWorkspaceSource(source);
 
 		const repoValidate = yield* await wrapOctokit(
@@ -254,7 +260,14 @@ function getGhRepoNameFromWorkspaceSource(
 	source: WorkspaceCreateOptions['source']
 ): ResultAsync<
 	{ ghRepoOwner: string; ghRepoName: string },
-	Tagged<'TemplateNotFoundError' | 'DBError'>
+	Tagged<
+		| 'TemplateNotFoundError'
+		| 'DBError'
+		| 'DatabaseUnavailableError'
+		| 'DrizzleInitError'
+		| 'BunDatabaseOpenError'
+        | 'DatabaseNotFoundError'
+	>
 > {
 	if (source.type === 'github')
 		return okAsync({
@@ -298,7 +311,7 @@ const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
 		);
 
 		return ok();
-	});
+});
 
 const gibi = 1024 ** 3;
 
@@ -339,7 +352,7 @@ const createWorkspaceContainer = (
 	});
 
 const getAccessibleWorkspaceUuids = (userUuid: Uuid) =>
-	wrapDB(
+	useDB((db) =>
 		union(
 			db
 				.select({ uuid: workspaces.uuid })
@@ -357,10 +370,12 @@ const getAccessibleWorkspaceUuids = (userUuid: Uuid) =>
 	).map((workspaces) => workspaces.map((x) => x.uuid));
 
 export const addWorkspaceSharedUser = (workspaceUuid: Uuid, userUuidToAdd: Uuid) =>
-	wrapDB(db.insert(workspacesToSharedUsers).values({ userUuid: userUuidToAdd, workspaceUuid }));
+	useDB((db) =>
+		db.insert(workspacesToSharedUsers).values({ userUuid: userUuidToAdd, workspaceUuid })
+	);
 
 export const removeWorkspaceSharedUser = (workspaceUuid: Uuid, userUuidToRemove: Uuid) =>
-	wrapDB(
+	useDB((db) =>
 		db
 			.delete(workspacesToSharedUsers)
 			.where(

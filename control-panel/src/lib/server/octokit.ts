@@ -1,10 +1,10 @@
-import { tagged, wrapDB, wrapOctokit } from '$lib/error';
+import { tagged, wrapOctokit } from '$lib/error';
+import { useDB } from '$lib/server/db';
+import { users } from '$lib/server/db/schema';
 import type { GitHubUserInfo, Uuid } from '$lib/types';
 import { Octokit } from '@octokit/rest';
 import { eq } from 'drizzle-orm';
 import { ok, Result, ResultAsync } from 'neverthrow';
-import { db } from './db';
-import { users } from './db/schema';
 
 export const initOctokit = (accessToken: string) =>
 	Result.fromThrowable(
@@ -13,7 +13,7 @@ export const initOctokit = (accessToken: string) =>
 	)({ auth: accessToken, userAgent: 'annex/0.0' });
 
 export const getGitHubUserInfo = (userUuid: Uuid, octokit: Octokit) =>
-	wrapDB(db.select({ ghId: users.ghId }).from(users).where(eq(users.uuid, userUuid)))
+	useDB((db) => db.select({ ghId: users.ghId }).from(users).where(eq(users.uuid, userUuid)))
 		.map((res) => res[0])
 		.andThen((dbResult) =>
 			dbResult

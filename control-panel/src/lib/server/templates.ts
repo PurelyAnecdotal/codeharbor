@@ -1,13 +1,13 @@
-import { tagged, wrapDB } from '$lib/error';
+import { tagged } from '$lib/error';
+import { useDB } from '$lib/server/db';
 import { templates, users } from '$lib/server/db/schema';
 import { githubRepoRegex, type Uuid } from '$lib/types';
 import { desc, eq, getTableColumns } from 'drizzle-orm';
 import { err, ok } from 'neverthrow';
 import z from 'zod';
-import { db } from './db';
 
 export async function getTemplatesForUser(userUuid: Uuid) {
-	const templatesResult = await wrapDB(
+	const templatesResult = await useDB((db) =>
 		db
 			.select({
 				...getTableColumns(templates),
@@ -30,7 +30,7 @@ export async function getTemplatesForUser(userUuid: Uuid) {
 }
 
 export const getGhRepoNameFromTemplate = (templateUuid: Uuid) =>
-	wrapDB(
+	useDB((db) =>
 		db
 			.select({ ghRepoOwner: templates.ghRepoOwner, ghRepoName: templates.ghRepoName })
 			.from(templates)
@@ -54,8 +54,8 @@ export type TemplateCreateOptions = z.infer<typeof TemplateCreateOptions>;
 export const createTemplate = (
 	{ name, description, ghRepoName, ghRepoOwner }: TemplateCreateOptions,
 	ownerUuid: Uuid
-) => {
-	return wrapDB(
+) =>
+	useDB((db) =>
 		db.insert(templates).values({
 			uuid: crypto.randomUUID(),
 			name,
@@ -66,4 +66,3 @@ export const createTemplate = (
 			ghRepoOwner
 		})
 	);
-};

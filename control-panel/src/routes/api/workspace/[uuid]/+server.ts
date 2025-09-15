@@ -1,5 +1,4 @@
-import { wrapDB } from '$lib/error';
-import { db } from '$lib/server/db';
+import { useDB } from '$lib/server/db';
 import { workspaces } from '$lib/server/db/schema';
 import { containerRemove } from '$lib/server/docker';
 import { validateWorkspaceAccess } from '$lib/server/workspaces';
@@ -25,7 +24,7 @@ export async function DELETE({ locals, params }) {
 		return new Response('Failed to remove container', { status: 500 });
 	}
 
-	const dbDeleteResult = await wrapDB(
+	const dbDeleteResult = await useDB((db) =>
 		db.delete(workspaces).where(eq(workspaces.uuid, workspaceUuid))
 	);
 
