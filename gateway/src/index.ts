@@ -33,6 +33,8 @@ app.all('*', async (c, next) => {
 	if (!urlObj.hostname.endsWith(rootDomain)) return c.text('Invalid host', 400);
 
 	if (urlObj.hostname === rootDomain) {
+		if (c.req.path === '/gateway' && c.req.method === 'GET') return c.text('OK');
+
 		if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(frontendServer, c, next);
 
 		return proxy(`http://${frontendServer}${c.req.path}${urlObj.search}`, {
