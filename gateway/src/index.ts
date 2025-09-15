@@ -56,6 +56,8 @@ app.all('*', async (c, next) => {
 });
 
 async function proxyWorkspace(uuid: Uuid, port: number, c: Context, next: Next) {
+	if (!db) return c.text('Database is not initialized', 500);
+
 	const [workspace] = await db.select().from(workspaces).where(eq(workspaces.uuid, uuid));
 	if (!workspace) return c.text('Workspace not found', 404);
 

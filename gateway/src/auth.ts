@@ -11,6 +11,8 @@ const sessionCookieName = 'auth-session';
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
 export async function validateSessionToken(token: string) {
+	if (!db) throw new Error('Database is not initialized');
+
 	const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
 
 	const [result] = await db
@@ -50,8 +52,12 @@ export async function validateSessionToken(token: string) {
 export const authMiddleware = createMiddleware(async (c, next) => {
 	const sessionToken = getCookie(c, sessionCookieName);
 	if (sessionToken !== undefined) {
-		const { user } = await validateSessionToken(sessionToken);
-		if (user) c.set('userUuid', user.uuid);
+		try {
+			const { user } = await validateSessionToken(sessionToken);
+			if (user) c.set('userUuid', user.uuid);
+		} catch (err) {
+			console.error('Error validating session token:', err);
+		}
 	}
 	await next();
 });
