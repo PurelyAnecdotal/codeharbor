@@ -8,7 +8,7 @@ import { authMiddleware } from './auth.js';
 import { db } from './db.js';
 import { workspaces } from './schema.js';
 
-const rootDomain = process.env.GATEWAY_ROOT_DOMAIN ?? 'annex.localhost';
+const rootDomain = process.env.GATEWAY_ROOT_DOMAIN ?? 'codeharbor.localhost';
 const port = 5110;
 const frontendServer = process.env.CONTROL_PANEL_HOST ?? 'localhost:5173';
 

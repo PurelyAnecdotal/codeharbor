@@ -10,7 +10,7 @@ export const initOctokit = (accessToken: string) =>
 	Result.fromThrowable(
 		(...rest) => new Octokit(...rest),
 		(err) => tagged('OctokitInitError', err)
-	)({ auth: accessToken, userAgent: 'annex/0.0' });
+	)({ auth: accessToken, userAgent: 'codeharbor/0.0' });
 
 export const getGitHubUserInfo = (userUuid: Uuid, octokit: Octokit) =>
 	useDB((db) => db.select({ ghId: users.ghId }).from(users).where(eq(users.uuid, userUuid)))

@@ -8,7 +8,7 @@
 	let name = $state(data.ghName ?? '');
 </script>
 
-<h1 class="text-2xl font-bold">Welcome to Annex!</h1>
+<h1 class="text-2xl font-bold">Welcome to CodeHarbor</h1>
 
 <p>Set a name to continue. You can change this at any time.</p>
 

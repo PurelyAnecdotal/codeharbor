@@ -1,5 +1,5 @@
 {
-	"name": "annex-monorepo",
+	"name": "codeharbor-monorepo",
 	"private": true,
 	"workspaces": [
 		"control-panel",

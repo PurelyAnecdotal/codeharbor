@@ -7,9 +7,9 @@
 	<Card.Root>
 		<Card.Header class="flex items-center justify-center">
 			<DiamondIcon />
-			<p class="text-xl">Annex</p>
+			<p class="text-xl">CodeHarbor</p>
 		</Card.Header>
 
-		<Card.Content>Annex is a self-hosted replacement for GitHub Codespaces.</Card.Content>
+		<Card.Content>CodeHarbor is a self-hosted replacement for GitHub Codespaces.</Card.Content>
 	</Card.Root>
 </div>

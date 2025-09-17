@@ -1,4 +1,4 @@
-name: annex
+name: codeharbor
 
 services:
   control-panel:

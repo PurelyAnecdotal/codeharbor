@@ -27,7 +27,7 @@
 	<div class="m-4 flex items-center gap-4">
 		<a href="/" class="flex items-center">
 			<DiamondIcon class="h-4" />
-			Annex
+			CodeHarbor
 		</a>
 
 		{#if user}

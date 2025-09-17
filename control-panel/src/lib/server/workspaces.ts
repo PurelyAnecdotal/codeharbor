@@ -221,7 +221,7 @@ export const createWorkspace = (
 		console.log(`Cloning git repository ${ghRepoOwner}/${ghRepoName}...`);
 
 		const workspaceUuid = crypto.randomUUID();
-		const volumeName = `annex-${workspaceUuid}`;
+		const volumeName = `codeharbor-${workspaceUuid}`;
 
 		yield* cloneGitRepoIntoVolume(authenticatedCloneURL, volumeName);
 
@@ -284,7 +284,7 @@ const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
 	safeTry(async function* () {
 		const gitContainer = yield* containerCreate({
 			Image: gitImage,
-			name: `annex-git-clone-${volumeName}`,
+			name: `codeharbor-git-clone-${volumeName}`,
 			HostConfig: {
 				Mounts: [
 					{
@@ -322,13 +322,13 @@ const createWorkspaceContainer = (
 ) =>
 	containerCreate({
 		Image: image ?? 'mcr.microsoft.com/devcontainers/base:ubuntu',
-		name: `annex-code-server-${workspaceUuid}`,
+		name: `codeharbor-code-server-${workspaceUuid}`,
 		// Env: ['CODE_ARGS=--server-base-path /instance'],
 		HostConfig: {
 			Mounts: [
 				{
 					Type: 'volume',
-					Source: `annex-${workspaceUuid}`,
+					Source: `codeharbor-${workspaceUuid}`,
 					Target: workspaceVolumeMountDir
 				},
 				{
