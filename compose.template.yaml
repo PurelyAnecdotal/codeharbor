@@ -8,8 +8,12 @@ services:
     environment:
       - AUTH_GITHUB_ID=${AUTH_GITHUB_ID:?error}
       - AUTH_GITHUB_SECRET=${AUTH_GITHUB_SECRET:?error}
-      - DOCKER_GROUP_ID=${DOCKER_GROUP_ID:?error} # stat -c '%g' /var/run/docker.sock
+      - DOCKER_GROUP_ID=${DOCKER_GROUP_ID:?error}
+      # If not behind proxy
       - ORIGIN=http://${GATEWAY_ROOT_DOMAIN:?error}:${GATEWAY_PORT:-5110}
+      # If behind proxy
+      # - PROTOCOL_HEADER=x-forwarded-proto
+      # - HOST_HEADER=x-forwarded-host
       - DATABASE_URL=/usr/src/app/db/local.db
     volumes:
       - type: bind
@@ -19,7 +23,7 @@ services:
         source: /var/run/docker.sock
         target: /var/run/docker.sock
     group_add:
-      - '${DOCKER_GROUP_ID:?error}' # stat -c '%g' /var/run/docker.sock
+      - '${DOCKER_GROUP_ID:?error}'
     init: true
   gateway:
     build:
@@ -41,5 +45,10 @@ services:
     depends_on:
       - control-panel
     group_add:
-      - '${DOCKER_GROUP_ID:?error}' # stat -c '%g' /var/run/docker.sock
+      - '${DOCKER_GROUP_ID:?error}'
     init: true
+  # If using Cloudflare Tunnel
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN:?error}
+  #   restart: unless-stopped
