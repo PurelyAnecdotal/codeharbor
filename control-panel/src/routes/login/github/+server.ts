@@ -1,9 +1,15 @@
 import { generateState } from 'arctic';
-import { github } from '$lib/server/auth';
+import { githubResult } from '$lib/server/auth';
 
 import type { RequestEvent } from '@sveltejs/kit';
 
 export async function GET(event: RequestEvent) {
+	if (githubResult.isErr()) {
+		console.error(githubResult.error);
+		return new Response('GitHub OAuth Server Error', { status: 500 });
+	}
+	const github = githubResult.value;
+
 	const state = generateState();
 	const url = github.createAuthorizationURL(state, ['repo']);
 

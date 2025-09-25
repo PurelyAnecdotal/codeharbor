@@ -25,7 +25,12 @@ const errorMessages = {
 	BunDatabaseOpenError: 'Bun failed to open database',
 	DrizzleInitError: 'ORM failed to initialize',
 	DatabaseUnavailableError: 'Database is unavailable during building',
-	DatabaseNotFoundError: 'Database file not found'
+	DatabaseNotFoundError: 'Database file not found',
+	DatabaseUrlNotSet: 'DATABASE_URL environment variable is not set',
+	GitHubOAuthClientIdNotSet: 'AUTH_GITHUB_ID environment variable is not set',
+	GitHubOAuthClientSecretNotSet: 'AUTH_GITHUB_SECRET environment variable is not set',
+	GitHubOAuthUnavailableError: 'GitHub OAuth client is unavailable during building',
+	OpenVSCodeServerMountPathNotSet: 'OPENVSCODE_SERVER_MOUNT_PATH environment variable is not set'
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 

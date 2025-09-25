@@ -1,14 +1,8 @@
-import { OPENVSCODE_SERVER_MOUNT_PATH } from '$env/static/private';
 import { zResult } from '$lib/result';
 import { initOctokit } from '$lib/server/octokit';
 import { createWorkspace, WorkspaceCreateOptions } from '$lib/server/workspaces';
 
 export async function POST({ request, locals }) {
-	if (OPENVSCODE_SERVER_MOUNT_PATH === undefined || OPENVSCODE_SERVER_MOUNT_PATH === '')
-		return new Response('The environment variable OPENVSCODE_SERVER_MOUNT_PATH is not set', {
-			status: 500
-		});
-
 	const { user } = locals;
 	if (!user) return new Response('Unauthorized', { status: 401 });
 

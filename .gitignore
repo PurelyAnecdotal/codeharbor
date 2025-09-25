@@ -13,5 +13,5 @@ Thumbs.db
 # SQLite
 *.db
 
-openvscode-server
+openvscode-server-*
 compose.yaml

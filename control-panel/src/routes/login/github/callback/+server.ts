@@ -2,7 +2,7 @@ import { safeFetch } from '$lib/fetch';
 import {
 	createSession,
 	generateSessionToken,
-	github,
+	githubResult,
 	setSessionTokenCookie
 } from '$lib/server/auth';
 import { useDB } from '$lib/server/db';
@@ -25,6 +25,12 @@ export async function GET(event: RequestEvent) {
 
 	if (code === null || state === null || storedState === null || state !== storedState)
 		return new Response(null, { status: 400 });
+
+	if (githubResult.isErr()) {
+		console.error(githubResult.error);
+		return new Response('GitHub OAuth Server Error', { status: 500 });
+	}
+	const github = githubResult.value;
 
 	let tokens: OAuth2Tokens;
 	try {

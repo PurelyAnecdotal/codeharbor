@@ -9,6 +9,7 @@ services:
       - AUTH_GITHUB_ID=${AUTH_GITHUB_ID:?error}
       - AUTH_GITHUB_SECRET=${AUTH_GITHUB_SECRET:?error}
       - DOCKER_GROUP_ID=${DOCKER_GROUP_ID:?error}
+      - OPENVSCODE_SERVER_MOUNT_PATH=${OPENVSCODE_SERVER_MOUNT_PATH:?error}
       # If not behind proxy
       - ORIGIN=http://${GATEWAY_ROOT_DOMAIN:?error}:${GATEWAY_PORT:-5110}
       # If behind proxy

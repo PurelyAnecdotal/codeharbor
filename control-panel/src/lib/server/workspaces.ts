@@ -1,5 +1,4 @@
-import { env } from '$env/dynamic/private';
-import { tagged, wrapOctokit, type Tagged } from '$lib/error';
+import { tagged, wrapOctokit } from '$lib/error';
 import { type InferAsyncOk } from '$lib/result';
 import { dbResult, useDB, wrapDB } from '$lib/server/db';
 import { templates, users, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
@@ -13,12 +12,13 @@ import {
 	getContainerResourceLimits,
 	listContainers
 } from '$lib/server/docker';
+import { openvscodeServerMountPath } from '$lib/server/env';
 import { getGhRepoNameFromTemplate } from '$lib/server/templates';
 import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { union } from 'drizzle-orm/sqlite-core';
-import { err, ok, okAsync, Result, ResultAsync, safeTry } from 'neverthrow';
+import { err, ok, okAsync, Result, safeTry } from 'neverthrow';
 import z from 'zod';
 
 export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
@@ -231,9 +231,13 @@ export const createWorkspace = (
 
 		const workspaceVolumeMountDir = `/config/workspace/${ghRepoName}`;
 
+		if (openvscodeServerMountPath === undefined)
+			return err(tagged('OpenVSCodeServerMountPathNotSet'));
+
 		const workspaceContainer = yield* await createWorkspaceContainer(
 			workspaceUuid,
-			workspaceVolumeMountDir
+			workspaceVolumeMountDir,
+			openvscodeServerMountPath
 		);
 
 		// Insert workspace into database
@@ -258,17 +262,7 @@ export const createWorkspace = (
 
 function getGhRepoNameFromWorkspaceSource(
 	source: WorkspaceCreateOptions['source']
-): ResultAsync<
-	{ ghRepoOwner: string; ghRepoName: string },
-	Tagged<
-		| 'TemplateNotFoundError'
-		| 'DBError'
-		| 'DatabaseUnavailableError'
-		| 'DrizzleInitError'
-		| 'BunDatabaseOpenError'
-        | 'DatabaseNotFoundError'
-	>
-> {
+): ReturnType<typeof getGhRepoNameFromTemplate> {
 	if (source.type === 'github')
 		return okAsync({
 			ghRepoOwner: source.ghRepoOwner,
@@ -311,13 +305,14 @@ const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
 		);
 
 		return ok();
-});
+	});
 
 const gibi = 1024 ** 3;
 
 const createWorkspaceContainer = (
 	workspaceUuid: Uuid,
 	workspaceVolumeMountDir: string,
+	openvscodeServerMountPath: string,
 	image?: string
 ) =>
 	containerCreate({
@@ -333,7 +328,7 @@ const createWorkspaceContainer = (
 				},
 				{
 					Type: 'bind',
-					Source: env.OPENVSCODE_SERVER_MOUNT_PATH,
+					Source: openvscodeServerMountPath,
 					Target: '/openvscode-server',
 					ReadOnly: true
 				}

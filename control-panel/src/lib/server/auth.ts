@@ -1,13 +1,15 @@
 import { building } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { tagged } from '$lib/error';
 import { useDB } from '$lib/server/db';
 import { sessions, users, type Session } from '$lib/server/db/schema';
+import { githubOAuthClientId, githubOAuthClientSecret } from '$lib/server/env';
 import type { Uuid } from '$lib/types';
 import { sha256 } from '@oslojs/crypto/sha2';
 import { encodeBase64url, encodeHexLowerCase } from '@oslojs/encoding';
 import type { RequestEvent } from '@sveltejs/kit';
 import { GitHub } from 'arctic';
 import { eq } from 'drizzle-orm';
+import { err, ok, safeTry } from 'neverthrow';
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
@@ -84,8 +86,13 @@ export const setSessionTokenCookie = (event: RequestEvent, token: string, expire
 export const deleteSessionTokenCookie = (event: RequestEvent) =>
 	event.cookies.delete(sessionCookieName, { path: '/' });
 
-export let github: GitHub;
+export const githubResult = safeTry(function* () {
+	if (building) return err(tagged('GitHubOAuthUnavailableError'));
 
-if (!building) {
-	github = new GitHub(env.AUTH_GITHUB_ID, env.AUTH_GTIHUB_SECRET, null);
-}
+	if (githubOAuthClientId === undefined) return err(tagged('GitHubOAuthClientIdNotSet'));
+	if (githubOAuthClientSecret === undefined) return err(tagged('GitHubOAuthClientSecretNotSet'));
+
+	const github = new GitHub(githubOAuthClientId, githubOAuthClientSecret, null);
+
+	return ok(github);
+});

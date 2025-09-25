@@ -53,7 +53,7 @@ export const setName = async (name: string) => {
 	await safeFetch('/api/user/setname', { method: 'POST', body: name }).match(
 		async (resp) => {
 			if (resp.ok) {
-				location.assign('/home');
+				location.assign('/workspaces');
 			} else {
 				toast.error('Failed to set name', { description: await resp.text() });
 			}

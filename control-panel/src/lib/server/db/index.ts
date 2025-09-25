@@ -2,10 +2,11 @@ import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { catchWithTag, tagged } from '$lib/error';
 import type { InferAsyncOk } from '$lib/result';
+import * as schema from '$lib/server/db/schema';
+import { databaseUrl } from '$lib/server/env';
 import Database from 'bun:sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { err, ok, Result, safeTry } from 'neverthrow';
-import * as schema from './schema';
 
 const openSqliteDatabase = Result.fromThrowable(
 	(...props: ConstructorParameters<typeof Database>) => new Database(...props),
@@ -17,7 +18,9 @@ const initDrizzle = Result.fromThrowable(drizzle, (err) => tagged('DrizzleInitEr
 export const dbResult = safeTry(async function* () {
 	if (building) return err(tagged('DatabaseUnavailableError'));
 
-	const databaseExists = await Bun.file(env.DATABASE_URL).exists();
+	if (databaseUrl === undefined) return err(tagged('DatabaseUrlNotSet'));
+
+	const databaseExists = await Bun.file(databaseUrl).exists();
 	if (!databaseExists) return err(tagged('DatabaseNotFoundError'));
 
 	// the { create:false } option should be used in this case, but is currently broken
