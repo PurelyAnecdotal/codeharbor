@@ -6,7 +6,7 @@ import { createMiddleware } from 'hono/factory';
 import { db } from './db.js';
 import * as schema from './schema.js';
 
-const sessionCookieName = 'auth-session';
+export const sessionCookieName = 'auth-session';
 
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 

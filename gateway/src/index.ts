@@ -3,22 +3,26 @@ import Dockerode from 'dockerode';
 import { eq } from 'drizzle-orm';
 import { type Context, Hono, type Next } from 'hono';
 import { upgradeWebSocket, websocket } from 'hono/bun';
+import { getCookie } from 'hono/cookie';
 import { proxy } from 'hono/proxy';
-import { authMiddleware } from './auth.js';
+import type { BlankInput } from 'hono/types';
+import { authMiddleware, sessionCookieName } from './auth.js';
 import { db } from './db.js';
 import { workspaces } from './schema.js';
 
-const rootDomain = process.env.GATEWAY_ROOT_DOMAIN ?? 'codeharbor.localhost';
+const rootDomain = process.env.BASE_DOMAIN ?? 'codeharbor.localhost';
 const port = 5110;
 const frontendServer = process.env.CONTROL_PANEL_HOST ?? 'localhost:5173';
 
 type Uuid = `${string}-${string}-${string}-${string}-${string}`;
 
 interface Variables {
-	userUuid: string;
+	userUuid?: Uuid;
 }
 
 const app = new Hono<{ Variables: Variables }>();
+
+type C = Context<{ Variables: Variables }, '*', BlankInput>;
 
 app.use('*', authMiddleware);
 
@@ -57,13 +61,32 @@ app.all('*', async (c, next) => {
 	return c.text('Invalid host', 400);
 });
 
-async function proxyWorkspace(uuid: Uuid, port: number, c: Context, next: Next) {
+async function proxyWorkspace(uuid: Uuid, port: number, c: C, next: Next) {
 	if (!db) return c.text('Database is not initialized', 500);
 
 	const [workspace] = await db.select().from(workspaces).where(eq(workspaces.uuid, uuid));
 	if (!workspace) return c.text('Workspace not found', 404);
 
-	// TODO: check user access to workspace
+	const userUuid = c.get('userUuid');
+	if (!userUuid) return c.text('Unauthorized', 401);
+
+	try {
+		const hasAccess = await (
+			await fetch(`http://${frontendServer}/api/workspace/${uuid}/hasaccess`, {
+				headers: {
+					Cookie: `${sessionCookieName}=${getCookie(c, sessionCookieName)}`
+				}
+			})
+		).text();
+
+		if (hasAccess !== 'true') {
+			if (hasAccess === 'false') return c.text('Forbidden', 403);
+			return c.text(`Error checking workspace access:\n${hasAccess}`, 500);
+		}
+	} catch (e) {
+		console.error(e);
+		return c.text('Error checking workspace access', 500);
+	}
 
 	let data: Dockerode.ContainerInspectInfo;
 	try {
@@ -88,7 +111,7 @@ async function proxyWorkspace(uuid: Uuid, port: number, c: Context, next: Next) 
 	});
 }
 
-const proxyWebsocket = (destHost: string, c: Context, next: Next) =>
+const proxyWebsocket = (destHost: string, c: C, next: Next) =>
 	upgradeWebSocket((c) => {
 		const search = new URL(c.req.url).search;
 

@@ -2,7 +2,7 @@ import { building } from '$app/environment';
 import { tagged } from '$lib/error';
 import { useDB } from '$lib/server/db';
 import { sessions, users, type Session } from '$lib/server/db/schema';
-import { githubOAuthClientId, githubOAuthClientSecret } from '$lib/server/env';
+import { baseDomain, githubOAuthClientId, githubOAuthClientSecret } from '$lib/server/env';
 import type { Uuid } from '$lib/types';
 import { sha256 } from '@oslojs/crypto/sha2';
 import { encodeBase64url, encodeHexLowerCase } from '@oslojs/encoding';
@@ -81,7 +81,11 @@ export const invalidateSession = (sessionId: string) =>
 	useDB((db) => db.delete(sessions).where(eq(sessions.id, sessionId)));
 
 export const setSessionTokenCookie = (event: RequestEvent, token: string, expiresAt: Date) =>
-	event.cookies.set(sessionCookieName, token, { expires: expiresAt, path: '/' });
+	event.cookies.set(sessionCookieName, token, {
+		expires: expiresAt,
+		path: '/',
+		domain: `.${baseDomain ?? 'codeharbor.localhost'}`
+	});
 
 export const deleteSessionTokenCookie = (event: RequestEvent) =>
 	event.cookies.delete(sessionCookieName, { path: '/' });
