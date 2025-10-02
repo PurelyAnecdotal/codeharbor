@@ -28,7 +28,7 @@ export const getWorkspaces = query(() =>
 			const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
 
 			return ok(workspacesList);
-		})
+		}).orTee(console.error)
 	)
 );
 
@@ -42,7 +42,7 @@ export const getWorkspaceStats = query(zUuid(), (workspaceUuid) =>
 		const dockerContainerStats = yield* containerStats(dockerId);
 
 		return ok(calculateContainerResourceUsage(dockerContainerStats));
-	})
+	}).orTee(console.error)
 );
 
 export const startWorkspace = command(zUuid(), (workspaceUuid) =>
@@ -56,7 +56,7 @@ export const startWorkspace = command(zUuid(), (workspaceUuid) =>
 			yield* containerStart(dockerId);
 
 			return ok();
-		})
+		}).orTee(console.error)
 	)
 );
 
@@ -71,7 +71,7 @@ export const stopWorkspace = command(zUuid(), (workspaceUuid) =>
 			yield* containerStop(dockerId);
 
 			return ok();
-		})
+		}).orTee(console.error)
 	)
 );
 
@@ -86,7 +86,7 @@ export const deleteWorkspace = command(zUuid(), (workspaceUuid) =>
 			yield* containerRemove(dockerId);
 
 			return ok();
-		}).mapErr(hideCause)
+		}).orTee(console.error).mapErr(hideCause)
 	)
 );
 
@@ -111,7 +111,7 @@ export const shareWorkspace = command(
 				yield* addWorkspaceSharedUser(workspaceUuid, userUuidToShare);
 
 				return ok();
-			})
+			}).orTee(console.error)
 		)
 );
 
@@ -137,6 +137,6 @@ export const unshareWorkspace = command(
 				yield* removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
 
 				return ok();
-			})
+			}).orTee(console.error)
 		)
 );

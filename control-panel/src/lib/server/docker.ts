@@ -2,7 +2,7 @@ import { catchWithTag } from '$lib/error';
 import { dockerSocketPath } from '$lib/server/env';
 import Dockerode from 'dockerode';
 
-export const docker = new Dockerode({ socketPath: dockerSocketPath });
+export const docker = new Dockerode({ socketPath: dockerSocketPath ?? '/var/run/docker.sock' });
 
 export const listContainers = () =>
 	catchWithTag(docker.listContainers({ all: true }), 'ContainersListError');

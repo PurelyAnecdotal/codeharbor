@@ -99,4 +99,4 @@ export const githubResult = safeTry(function* () {
 	const github = new GitHub(githubOAuthClientId, githubOAuthClientSecret, null);
 
 	return ok(github);
-});
+}).orTee(console.error);
