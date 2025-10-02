@@ -94,13 +94,6 @@ export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
 				.map(async ([workspace, containerInfo]) => {
 					const state = containerInfo.State as ContainerState;
 
-					let url: string | undefined;
-
-					const bridge = containerInfo.NetworkSettings.Networks['bridge'];
-
-					if (state === 'running' && bridge && bridge.IPAddress !== '')
-						url = `http://${bridge.IPAddress}:3000/?folder=${workspace.folder}`;
-
 					const sharedUsers = sharedUserEntries.filter(({ uuid }) =>
 						workspace.sharedUserUuids.includes(uuid)
 					);
@@ -109,7 +102,7 @@ export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
 
 					const { sharedUserUuids, ownerUuid, ...restWorkspace } = workspace;
 
-					const workspaceContainerInfo = { ...restWorkspace, state, url, sharedUsers, usageLimits };
+					const workspaceContainerInfo = { ...restWorkspace, state, sharedUsers, usageLimits };
 
 					return workspaceContainerInfo;
 				})

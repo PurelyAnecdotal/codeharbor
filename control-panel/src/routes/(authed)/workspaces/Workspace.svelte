@@ -170,12 +170,6 @@
 	</Card.Header>
 
 	<Card.Footer class="flex gap-2">
-		{#if workspace.url}
-			<Button href={uuidUrl} target="_blank">
-				<ScreenShareIcon />
-				Open
-			</Button>
-		{/if}
 		{#if workspace.state === 'exited' || workspace.state === 'created'}
 			<Button onclick={start} variant="outline" disabled={starting}>
 				<PlayIcon />
@@ -185,6 +179,10 @@
 				{/if}
 			</Button>
 		{:else if workspace.state === 'running'}
+			<Button href={uuidUrl} target="_blank">
+				<ScreenShareIcon />
+				Open
+			</Button>
 			<Button onclick={stop} variant="outline" disabled={stopping}>
 				<MonitorXIcon />
 				Stop
