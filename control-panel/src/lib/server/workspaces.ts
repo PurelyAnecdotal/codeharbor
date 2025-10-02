@@ -12,7 +12,7 @@ import {
 	getContainerResourceLimits,
 	listContainers
 } from '$lib/server/docker';
-import { openvscodeServerMountPath } from '$lib/server/env';
+import { dockerNetworkName, openvscodeServerMountPath } from '$lib/server/env';
 import { getGhRepoNameFromTemplate } from '$lib/server/templates';
 import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
@@ -333,6 +333,7 @@ const createWorkspaceContainer = (
 					ReadOnly: true
 				}
 			],
+			NetworkMode: dockerNetworkName ?? 'codeharbor',
 			NanoCpus: 1 * 1e9,
 			Memory: 1 * gibi,
 			Init: true

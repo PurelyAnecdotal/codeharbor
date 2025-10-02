@@ -11,9 +11,10 @@ services:
       - DOCKER_GROUP_ID=${DOCKER_GROUP_ID:?error}
       - OPENVSCODE_SERVER_MOUNT_PATH=${OPENVSCODE_SERVER_MOUNT_PATH:?error}
       - BASE_DOMAIN=${BASE_DOMAIN:?error}
+      - DOCKER_NETWORK_NAME=${DOCKER_NETWORK_NAME:-codeharbor}
       # If not behind proxy
-      - ORIGIN=http://${BASE_DOMAIN:?error}:${GATEWAY_PORT:-5110}
-      # If behind proxy
+      - ORIGIN=${ORIGIN:?error}}
+      # If behind proxy (e.g. Cloudflare Tunnel)
       # - PROTOCOL_HEADER=x-forwarded-proto
       # - HOST_HEADER=x-forwarded-host
       - DATABASE_URL=/usr/src/app/db/local.db
@@ -37,6 +38,7 @@ services:
       - BASE_DOMAIN=${BASE_DOMAIN:?error}
       - CONTROL_PANEL_HOST=control-panel:3000
       - DATABASE_URL=/usr/src/app/db/local.db
+      - GATEWAY_IN_CONTAINER=true
     volumes:
       - type: bind
         source: ${DATABASE_DIR:?error}
@@ -49,8 +51,15 @@ services:
     group_add:
       - '${DOCKER_GROUP_ID:?error}'
     init: true
+    networks:
+      - codeharbor
+      - default
   # If using Cloudflare Tunnel
   # cloudflared:
   #   image: cloudflare/cloudflared:latest
   #   command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN:?error}
   #   restart: unless-stopped
+networks:
+  codeharbor:
+    external: true
+    name: ${DOCKER_NETWORK_NAME:-codeharbor}

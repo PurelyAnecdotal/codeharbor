@@ -23,11 +23,18 @@
 				templateUuid: data.template.uuid
 			}
 		})
-			.andTee((resp) => {
+			.andTee(async (resp) => {
 				if (resp.ok) goto('/workspaces');
-				else toast.error('Failed to create workspace', { description: resp.statusText });
+				else {
+					const error = await resp.text();
+					console.error('Failed to create workspace: ' + error);
+					toast.error('Failed to create workspace', { description: error });
+				}
 			})
-			.orTee((err) => toast.error('Failed to create workspace', { description: err.message }));
+			.orTee((err) => {
+				console.error('Failed to create workspace: ' + err.message);
+				toast.error('Failed to create workspace', { description: err.message });
+			});
 		creating = false;
 	};
 </script>

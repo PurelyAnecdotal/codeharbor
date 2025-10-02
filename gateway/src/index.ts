@@ -13,6 +13,7 @@ import { workspaces } from './schema.js';
 const rootDomain = process.env.BASE_DOMAIN ?? 'codeharbor.localhost';
 const port = 5110;
 const frontendServer = process.env.CONTROL_PANEL_HOST ?? 'localhost:5173';
+const inContainer = process.env.GATEWAY_IN_CONTAINER === 'true';
 
 type Uuid = `${string}-${string}-${string}-${string}-${string}`;
 
@@ -96,14 +97,21 @@ async function proxyWorkspace(uuid: Uuid, port: number, c: C, next: Next) {
 		return c.text('Error inspecting docker container', 500);
 	}
 
-	const bridge = data.NetworkSettings.Networks['bridge'];
-	if (!bridge) return c.text('Bridge network not found', 500);
+	let containerHostname: string;
+	if (inContainer) {
+		containerHostname = data.Name.replace('/', '');
+	} else {
+		const bridge = data.NetworkSettings.Networks['bridge'];
+		if (!bridge) return c.text('Bridge network not found', 500);
 
-	const containerHost = `${bridge.IPAddress}:${port}`;
-
-	if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(containerHost, c, next);
+		containerHostname = bridge.IPAddress;
+	}
 
 	const urlObj = new URL(c.req.url);
+
+	const containerHost = `${containerHostname}:${port}`;
+
+	if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(containerHost, c, next);
 
 	return proxy(`http://${containerHost}${c.req.path}${urlObj.search}`, {
 		...c.req,
