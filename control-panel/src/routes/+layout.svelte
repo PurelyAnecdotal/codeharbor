@@ -6,7 +6,7 @@
 	import * as NavigationMenu from '$lib/components/ui/navigation-menu';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import DiamondIcon from '@lucide/svelte/icons/diamond';
-	import GitHubIcon from '@lucide/svelte/icons/github';
+	import GitHubIcon from '$lib/components/GitHubIcon.svelte';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import SquareArrowRightIcon from '@lucide/svelte/icons/square-arrow-right';

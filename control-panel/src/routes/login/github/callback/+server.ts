@@ -36,6 +36,7 @@ export async function GET(event: RequestEvent) {
 	try {
 		tokens = await github.validateAuthorizationCode(code);
 	} catch (e) {
+		console.error('Failed to validate authorization code', e);
 		return new Response(null, { status: 400 });
 	}
 

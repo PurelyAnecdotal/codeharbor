@@ -57,9 +57,9 @@
 
 <div class="mt-4">
 	<Button onclick={create} disabled={creating}>
+		Create
 		{#if creating}
 			<LoaderCircleIcon class="animate-spin" />
 		{/if}
-		Create
 	</Button>
 </div>

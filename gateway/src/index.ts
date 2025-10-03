@@ -14,6 +14,7 @@ const rootDomain = process.env.BASE_DOMAIN ?? 'codeharbor.localhost';
 const port = 5110;
 const frontendServer = process.env.CONTROL_PANEL_HOST ?? 'localhost:5173';
 const inContainer = process.env.GATEWAY_IN_CONTAINER === 'true';
+const dockerNetworkName = process.env.DOCKER_NETWORK_NAME ?? 'codeharbor';
 
 type Uuid = `${string}-${string}-${string}-${string}-${string}`;
 
@@ -101,10 +102,10 @@ async function proxyWorkspace(uuid: Uuid, port: number, c: C, next: Next) {
 	if (inContainer) {
 		containerHostname = data.Name.replace('/', '');
 	} else {
-		const bridge = data.NetworkSettings.Networks['bridge'];
-		if (!bridge) return c.text('Bridge network not found', 500);
+		const network = data.NetworkSettings.Networks[dockerNetworkName];
+		if (!network) return c.text(`Docker network '${dockerNetworkName}' not found on container`, 500);
 
-		containerHostname = bridge.IPAddress;
+		containerHostname = network.IPAddress;
 	}
 
 	const urlObj = new URL(c.req.url);

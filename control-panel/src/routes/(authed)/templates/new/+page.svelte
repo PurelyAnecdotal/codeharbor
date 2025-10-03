@@ -6,7 +6,8 @@
 	import * as Command from '$lib/components/ui/command';
 	import { Input } from '$lib/components/ui/input';
 	import * as Popover from '$lib/components/ui/popover';
-	import { templateCreate } from '$lib/fetch';
+	import { safeFetch } from '$lib/fetch';
+	import type { TemplateCreateOptions } from '$lib/server/templates.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
@@ -46,13 +47,30 @@
 			return;
 		}
 
+		if (name.length === 0) {
+			toast.error('Name is required');
+			return;
+		}
+
+		if (name.length > 50) {
+			toast.error('Name is too long', { description: 'Name must be less than 50 characters' });
+			return;
+		}
+
+		if (description.length > 500) {
+			toast.error('Description is too long', {
+				description: 'Description must be less than 500 characters'
+			});
+			return;
+		}
+
 		const repo = reposResult.value.find((r) => r.id === selectedRepoID);
 		if (!repo) return;
 
 		creating = true;
 		await templateCreate({
 			name,
-			description,
+			description: description.length > 0 ? description : undefined,
 			ghRepoOwner: repo.owner.login,
 			ghRepoName: repo.name
 		})
@@ -63,6 +81,13 @@
 			.orTee((err) => toast.error('Failed to create template', { description: err.message }));
 		creating = false;
 	}
+
+	const templateCreate = (options: TemplateCreateOptions) =>
+		safeFetch('/api/template', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(options)
+		});
 </script>
 
 <h1 class="mb-8 text-3xl">Create a new template</h1>
@@ -134,9 +159,9 @@
 
 <div class="mt-8">
 	<Button onclick={create} disabled={creating}>
+		Create
 		{#if creating}
 			<LoaderCircleIcon class="animate-spin" />
 		{/if}
-		Create
 	</Button>
 </div>

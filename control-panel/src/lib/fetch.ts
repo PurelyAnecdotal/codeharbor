@@ -61,10 +61,3 @@ export const setName = async (name: string) => {
 		(err) => toast.error('Failed to set Name', { description: err.message })
 	);
 };
-
-export const templateCreate = (options: TemplateCreateOptions) =>
-	safeFetch('/api/template', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(options)
-	});

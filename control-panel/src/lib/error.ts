@@ -30,7 +30,9 @@ const errorMessages = {
 	GitHubOAuthClientIdNotSet: 'AUTH_GITHUB_ID environment variable is not set',
 	GitHubOAuthClientSecretNotSet: 'AUTH_GITHUB_SECRET environment variable is not set',
 	GitHubOAuthUnavailableError: 'GitHub OAuth client is unavailable during building',
-	OpenVSCodeServerMountPathNotSet: 'OPENVSCODE_SERVER_MOUNT_PATH environment variable is not set'
+	OpenVSCodeServerMountPathNotSet: 'OPENVSCODE_SERVER_MOUNT_PATH environment variable is not set',
+	FormValidationError: 'Form validation failed',
+	UnauthorizedError: 'You are not authorized to perform this action'
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 

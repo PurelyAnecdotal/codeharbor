@@ -3,7 +3,7 @@ import { useDB } from '$lib/server/db';
 import { templates, users } from '$lib/server/db/schema';
 import { githubRepoRegex, type Uuid } from '$lib/types';
 import { desc, eq, getTableColumns } from 'drizzle-orm';
-import { err, ok } from 'neverthrow';
+import { err, ok, safeTry } from 'neverthrow';
 import z from 'zod';
 
 export async function getTemplatesForUser(userUuid: Uuid) {
@@ -12,6 +12,7 @@ export async function getTemplatesForUser(userUuid: Uuid) {
 			.select({
 				...getTableColumns(templates),
 				owner: {
+					uuid: users.uuid,
 					name: users.name,
 					ghId: users.ghId
 				}
@@ -55,14 +56,26 @@ export const createTemplate = (
 	{ name, description, ghRepoName, ghRepoOwner }: TemplateCreateOptions,
 	ownerUuid: Uuid
 ) =>
-	useDB((db) =>
-		db.insert(templates).values({
-			uuid: crypto.randomUUID(),
-			name,
-			description,
-			ownerUuid,
-			createdAt: new Date(),
-			ghRepoName,
-			ghRepoOwner
-		})
-	);
+	safeTry(async function* () {
+		if (
+			name.length === 0 ||
+			name.length > 50 ||
+			(description !== undefined && description.length > 500)
+		)
+			return err(tagged('FormValidationError'));
+		if (description !== undefined && description.length === 0) description = undefined;
+
+		yield* useDB((db) =>
+			db.insert(templates).values({
+				uuid: crypto.randomUUID(),
+				name,
+				description,
+				ownerUuid,
+				createdAt: new Date(),
+				ghRepoName,
+				ghRepoOwner
+			})
+		);
+
+		return ok();
+	});
