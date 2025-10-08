@@ -244,6 +244,8 @@ export const createWorkspace = (
 		yield* cloneGitRepoIntoVolume(authenticatedCloneURL, volumeName);
 
 		let entrypoints: string[] | undefined = undefined;
+		let containerUser = 'root';
+
 		if (devcontainerImageName) {
 			const image = yield* imageInspect(devcontainerImageName);
 
@@ -259,11 +261,39 @@ export const createWorkspace = (
 			const parsedMetadata = parsedMetadataResult.data;
 
 			entrypoints = parsedMetadata.flatMap((item) => item.entrypoint ?? []);
-			console.log(entrypoints);
+			containerUser =
+				parsedMetadata.find((item) => item.containerUser !== undefined)?.containerUser ??
+				containerUser;
+
+			if (containerUser !== 'root') {
+				// TODO: assuming that the containerUser has UID 1000
+				const tempContainer = yield* containerCreate({
+					Image: 'oven/bun:alpine',
+					name: `codeharbor-temp-${workspaceUuid}`,
+					HostConfig: {
+						Mounts: [
+							{
+								Type: 'volume',
+								Source: `codeharbor-${workspaceUuid}`,
+								Target: '/workspace'
+							}
+						],
+						Init: true
+					},
+					Entrypoint: ['/bin/sh'],
+					Cmd: ['-c', `chown -R 1000:1000 /workspace`, '--']
+				});
+				yield* containerStart(tempContainer.id);
+				yield* containerWait(tempContainer.id);
+				containerRemove(tempContainer.id).orTee((err) =>
+					console.error('Failed to remove temporary container:', err)
+				);
+			}
+		} else {
+			// containerUser = 'vscode';
 		}
 
-		const entrypointsMerged = entrypoints ? entrypoints.map((e) => e + ' & ').join('') : '';
-		console.log(entrypointsMerged)
+		const entrypointsMerged = entrypoints ? entrypoints.map((e) => e + '\n').join('') : '';
 
 		const workspaceContainer = yield* containerCreate({
 			Image: devcontainerImageName ?? 'mcr.microsoft.com/devcontainers/base:ubuntu',
@@ -294,8 +324,8 @@ export const createWorkspace = (
 				`${entrypointsMerged}
 				/openvscode-server/bin/openvscode-server --host 0.0.0.0 --without-connection-token`,
 				'--'
-			]
-			// User: 'vscode'
+			],
+			User: containerUser
 		});
 
 		yield* await wrapDB(
@@ -387,6 +417,8 @@ export const removeWorkspaceSharedUser = (workspaceUuid: Uuid, userUuidToRemove:
 const DevcontainerImageMetadataSubset = z.array(
 	z.object({
 		id: z.string().optional(),
-		entrypoint: z.string().optional()
+		entrypoint: z.string().optional(),
+		containerUser: z.string().optional(),
+		remoteUser: z.string().optional()
 	})
 );
