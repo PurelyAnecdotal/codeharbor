@@ -14,7 +14,7 @@
 		"hono": "^4.9.6"
 	},
 	"devDependencies": {
-		"@types/bun": "1.2.21",
+		"@types/bun": "1.2.23",
 		"@types/dockerode": "^3.3.43"
 	}
 }
