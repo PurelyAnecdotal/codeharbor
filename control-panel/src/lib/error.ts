@@ -12,6 +12,7 @@ const errorMessages = {
 	ContainerStatsError: 'Failed to get container stats',
 	ContainerWaitError: 'Failed to wait for container',
 	ContainersListError: 'Failed to list containers',
+	ContainerLogsError: 'Failed to get container logs',
 	ContainerNotFoundError: 'Container not found',
 	ContainerNotRunningError: 'Container is not running',
 	OctokitError: 'Error communicating with GitHub',
@@ -32,7 +33,15 @@ const errorMessages = {
 	GitHubOAuthUnavailableError: 'GitHub OAuth client is unavailable during building',
 	OpenVSCodeServerMountPathNotSet: 'OPENVSCODE_SERVER_MOUNT_PATH environment variable is not set',
 	FormValidationError: 'Form validation failed',
-	UnauthorizedError: 'You are not authorized to perform this action'
+	UnauthorizedError: 'You are not authorized to perform this action',
+	DevcontainerCliError: 'Devcontainer CLI command failed',
+	DevcontainerCliOutputParseError: 'Failed to parse Devcontainer CLI output',
+	JSONParseError: 'Failed to parse JSON',
+	GitHubSourceNotSupportedError:
+		'Creating workspaces from github repositories directly is not yet implemented',
+	ImageInspectError: 'Failed to inspect Docker image',
+	ImageDevcontainerMetadataMissingError: 'Docker image is missing devcontainer metadata',
+	ImageDevcontainerMetadataParseError: 'Failed to parse devcontainer metadata from image'
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 

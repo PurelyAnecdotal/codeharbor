@@ -1,3 +1,4 @@
+import { tagged } from '$lib/error';
 import { err, ok, Result, ResultAsync } from 'neverthrow';
 import type { ZodError, ZodSafeParseResult } from 'zod';
 
@@ -38,3 +39,7 @@ export const RAtoJ = async <T, E>(R: ResultAsync<T, E>) => RtoJ(await R);
 export const JtoR = <T, E>(
 	J: { success: true; value: T } | { success: false; error: E }
 ): Result<T, E> => (J.success ? ok(J.value) : err(J.error));
+
+export const JSONSafeParse = Result.fromThrowable(JSON.parse, (err) =>
+	tagged('JSONParseError', err)
+);

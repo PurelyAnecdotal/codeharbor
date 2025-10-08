@@ -2,19 +2,21 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import * as Alert from '$lib/components/ui/alert';
-	import Button from '$lib/components/ui/button/button.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Command from '$lib/components/ui/command';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import * as Popover from '$lib/components/ui/popover';
-	import { safeFetch } from '$lib/fetch';
-	import type { TemplateCreateOptions } from '$lib/server/templates.js';
+	import { JtoR } from '$lib/result.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
-	import GithubIcon from '@lucide/svelte/icons/github';
+	import GithubIcon from '$lib/components/GitHubIcon.svelte';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import { createTemplate } from '../templates.remote.js';
 
 	const { data } = $props();
 
@@ -31,6 +33,7 @@
 
 	let name = $state('');
 	let description = $state('');
+	let useDevcontainerConfig = $state(false);
 
 	function closeAndFocusTrigger() {
 		repoPickerOpen = false;
@@ -68,41 +71,29 @@
 		if (!repo) return;
 
 		creating = true;
-		await templateCreate({
-			name,
-			description: description.length > 0 ? description : undefined,
-			ghRepoOwner: repo.owner.login,
-			ghRepoName: repo.name
-		})
-			.andTee((resp) => {
-				if (resp.ok) goto('/templates');
-				else toast.error('Failed to create template', { description: resp.statusText });
+
+		JtoR(
+			await createTemplate({
+				name,
+				description: description.length > 0 ? description : undefined,
+				ghRepoOwner: repo.owner.login,
+				ghRepoName: repo.name,
+				devcontainer: useDevcontainerConfig
 			})
-			.orTee((err) => toast.error('Failed to create template', { description: err.message }));
+		).match(
+			() => goto('/templates'),
+			(err) => toast.error('Failed to create template', { description: err.message })
+		);
+
 		creating = false;
 	}
-
-	const templateCreate = (options: TemplateCreateOptions) =>
-		safeFetch('/api/template', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(options)
-		});
 </script>
 
 <h1 class="mb-8 text-3xl">Create a new template</h1>
 
-<h2 class="mb-4 text-xl">Select from your repositories</h2>
+<h2 class="mb-4 text-lg">Select from your repositories</h2>
 
-{#if reposResult.isErr()}
-	<Alert.Root variant="destructive">
-		<CircleAlertIcon class="size-4" />
-		<Alert.Title>Failed to load repositories</Alert.Title>
-		<Alert.Description>
-			{reposResult.error.message}
-		</Alert.Description>
-	</Alert.Root>
-{:else}
+{#if reposResult.isOk()}
 	<Popover.Root bind:open={repoPickerOpen}>
 		<Popover.Trigger bind:ref={triggerRef}>
 			{#snippet child({ props })}
@@ -113,14 +104,14 @@
 					role="combobox"
 					aria-expanded={repoPickerOpen}
 				>
-					<GithubIcon />
+					<GithubIcon class="fill-white" />
 					{selectedRepoName ?? 'Select a repo...'}
 					<ChevronsUpDownIcon class="opacity-50" />
 				</Button>
 			{/snippet}
 		</Popover.Trigger>
 
-		<Popover.Content class="w-[200px] p-0">
+		<Popover.Content class="w-xs p-0">
 			<Command.Root>
 				<Command.Input placeholder="Search repos..." />
 				<Command.List>
@@ -147,15 +138,33 @@
 			</Command.Root>
 		</Popover.Content>
 	</Popover.Root>
+{:else}
+	<Alert.Root variant="destructive">
+		<CircleAlertIcon class="size-4" />
+		<Alert.Title>Failed to load repositories</Alert.Title>
+		<Alert.Description>
+			{reposResult.error.message}
+		</Alert.Description>
+	</Alert.Root>
 {/if}
 
-<h2 class="mt-8 mb-4 text-xl">Name</h2>
+<h2 class="mt-8 mb-4 text-lg">Name</h2>
 
 <Input bind:value={name} class="w-sm" />
 
-<h2 class="mt-8 mb-4 text-xl">Description</h2>
+<h2 class="mt-8 mb-4 text-lg">Description</h2>
 
 <Input bind:value={description} class="w-sm" />
+
+<div class="mt-8 flex items-start gap-3">
+	<Checkbox id="devcontainer" bind:checked={useDevcontainerConfig} />
+	<div class="grid gap-2">
+		<Label for="devcontainer">Use devcontainer</Label>
+		<p class="text-muted-foreground text-sm">
+			The repository must contain a devcontainer configuration file.
+		</p>
+	</div>
+</div>
 
 <div class="mt-8">
 	<Button onclick={create} disabled={creating}>

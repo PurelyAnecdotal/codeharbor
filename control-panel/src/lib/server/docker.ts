@@ -38,6 +38,14 @@ export const containerStats = (containerId: string) =>
 export const containerWait = (containerId: string, waitOptions?: Dockerode.ContainerWaitOptions) =>
 	catchWithTag(docker.getContainer(containerId).wait(waitOptions), 'ContainerWaitError');
 
+export const containerLogs = (
+	containerId: string,
+	logOptions?: Dockerode.ContainerLogsOptions & { follow: false }
+) => catchWithTag(docker.getContainer(containerId).logs(logOptions), 'ContainerLogsError');
+
+export const imageInspect = (imageId: string) =>
+	catchWithTag(docker.getImage(imageId).inspect(), 'ImageInspectError');
+
 export function calculateContainerResourceUsage({
 	cpu_stats,
 	precpu_stats,

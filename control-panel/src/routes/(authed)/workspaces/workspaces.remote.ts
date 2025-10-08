@@ -1,5 +1,5 @@
 import { command, getRequestEvent, query } from '$app/server';
-import { hideCause } from '$lib/error';
+import { hideCause, tagged } from '$lib/error';
 import { RAtoJ } from '$lib/result';
 import {
 	calculateContainerResourceUsage,
@@ -16,7 +16,7 @@ import {
 } from '$lib/server/workspaces';
 import { zUuid } from '$lib/types';
 import { redirect } from '@sveltejs/kit';
-import { ok, safeTry } from 'neverthrow';
+import { err, ok, safeTry } from 'neverthrow';
 import z from 'zod';
 
 export const getWorkspaces = query(() =>
@@ -28,7 +28,9 @@ export const getWorkspaces = query(() =>
 			const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
 
 			return ok(workspacesList);
-		}).orTee(console.error)
+		})
+			.orTee(console.error)
+			.mapErr(hideCause)
 	)
 );
 
@@ -42,21 +44,25 @@ export const getWorkspaceStats = query(zUuid(), (workspaceUuid) =>
 		const dockerContainerStats = yield* containerStats(dockerId);
 
 		return ok(calculateContainerResourceUsage(dockerContainerStats));
-	}).orTee(console.error)
+	})
+		.orTee(console.error)
+		.mapErr(hideCause)
 );
 
 export const startWorkspace = command(zUuid(), (workspaceUuid) =>
 	RAtoJ(
 		safeTry(async function* () {
 			const { user } = getRequestEvent().locals;
-			if (!user) redirect(307, '/');
+			if (!user) return err(tagged('UnauthorizedError'));
 
 			const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
 			yield* containerStart(dockerId);
 
 			return ok();
-		}).orTee(console.error)
+		})
+			.orTee(console.error)
+			.mapErr(hideCause)
 	)
 );
 
@@ -64,14 +70,16 @@ export const stopWorkspace = command(zUuid(), (workspaceUuid) =>
 	RAtoJ(
 		safeTry(async function* () {
 			const { user } = getRequestEvent().locals;
-			if (!user) redirect(307, '/');
+			if (!user) return err(tagged('UnauthorizedError'));
 
 			const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
 			yield* containerStop(dockerId);
 
 			return ok();
-		}).orTee(console.error)
+		})
+			.orTee(console.error)
+			.mapErr(hideCause)
 	)
 );
 
@@ -79,14 +87,16 @@ export const deleteWorkspace = command(zUuid(), (workspaceUuid) =>
 	RAtoJ(
 		safeTry(async function* () {
 			const { user } = getRequestEvent().locals;
-			if (!user) redirect(307, '/');
+			if (!user) return err(tagged('UnauthorizedError'));
 
 			const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
 			yield* containerRemove(dockerId);
 
 			return ok();
-		}).orTee(console.error).mapErr(hideCause)
+		})
+			.orTee(console.error)
+			.mapErr(hideCause)
 	)
 );
 
@@ -99,7 +109,7 @@ export const shareWorkspace = command(
 		RAtoJ(
 			safeTry(async function* () {
 				const { user } = getRequestEvent().locals;
-				if (!user) redirect(307, '/');
+				if (!user) return err(tagged('UnauthorizedError'));
 
 				const { ownerUuid, sharedUserUuids } = yield* validateWorkspaceAccessSafeTry(
 					user.uuid,
@@ -111,7 +121,9 @@ export const shareWorkspace = command(
 				yield* addWorkspaceSharedUser(workspaceUuid, userUuidToShare);
 
 				return ok();
-			}).orTee(console.error)
+			})
+				.orTee(console.error)
+				.mapErr(hideCause)
 		)
 );
 
@@ -124,7 +136,7 @@ export const unshareWorkspace = command(
 		RAtoJ(
 			safeTry(async function* () {
 				const { user } = getRequestEvent().locals;
-				if (!user) redirect(307, '/');
+				if (!user) return err(tagged('UnauthorizedError'));
 
 				const { ownerUuid, sharedUserUuids } = yield* validateWorkspaceAccessSafeTry(
 					user.uuid,
@@ -137,6 +149,8 @@ export const unshareWorkspace = command(
 				yield* removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
 
 				return ok();
-			}).orTee(console.error)
+			})
+				.orTee(console.error)
+				.mapErr(hideCause)
 		)
 );

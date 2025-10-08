@@ -1,5 +1,5 @@
 import { tagged, wrapOctokit } from '$lib/error';
-import { type InferAsyncOk } from '$lib/result';
+import { JSONSafeParse, type InferAsyncOk } from '$lib/result';
 import { dbResult, useDB, wrapDB } from '$lib/server/db';
 import { templates, users, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
 import { jsonGroupArray } from '$lib/server/db/utils';
@@ -10,16 +10,20 @@ import {
 	containerStart,
 	containerWait,
 	getContainerResourceLimits,
+	imageInspect,
 	listContainers
 } from '$lib/server/docker';
 import { dockerNetworkName, openvscodeServerMountPath } from '$lib/server/env';
-import { getGhRepoNameFromTemplate } from '$lib/server/templates';
 import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { union } from 'drizzle-orm/sqlite-core';
-import { err, ok, okAsync, Result, safeTry } from 'neverthrow';
+import { err, ok, Result, safeTry } from 'neverthrow';
 import z from 'zod';
+
+const gitImage = 'cgr.dev/chainguard/git';
+
+const gibi = 1024 ** 3;
 
 export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
 	safeTry(async function* () {
@@ -195,45 +199,104 @@ export type WorkspaceCreateOptions = z.infer<typeof WorkspaceCreateOptions>;
 export const createWorkspace = (
 	{ name, source }: WorkspaceCreateOptions,
 	ownerUuid: Uuid,
-	octokit: Octokit,
-	ghAccessToken: string
+	octokit: Octokit
 ) =>
 	safeTry(async function* () {
 		const db = yield* dbResult;
 
-		const { ghRepoOwner, ghRepoName } = yield* await getGhRepoNameFromWorkspaceSource(source);
+		if (openvscodeServerMountPath === undefined)
+			return err(tagged('OpenVSCodeServerMountPathNotSet'));
+
+		if (source.type === 'github') return err(tagged('GitHubSourceNotSupportedError'));
+
+		const { templateUuid } = source;
+
+		const [template] = yield* wrapDB(
+			db
+				.select({
+					ghRepoOwner: templates.ghRepoOwner,
+					ghRepoName: templates.ghRepoName,
+					devcontainerImage: templates.devcontainerImage,
+					owner: {
+						ghAccessToken: users.ghAccessToken
+					}
+				})
+				.from(templates)
+				.where(eq(templates.uuid, templateUuid))
+				.innerJoin(users, eq(templates.ownerUuid, users.uuid))
+		);
+		if (!template) return err(tagged('TemplateNotFoundError'));
+
+		const { ghRepoOwner, ghRepoName, devcontainerImage: devcontainerImageName } = template;
+
+		const workspaceUuid = crypto.randomUUID();
+		const volumeName = `codeharbor-${workspaceUuid}`;
+		const workspaceVolumeMountDir = `/config/workspace/${ghRepoName}`;
 
 		const repoValidate = yield* await wrapOctokit(
 			octokit.rest.repos.get({ owner: ghRepoOwner, repo: ghRepoName })
 		);
 
 		const cloneUrlObject = new URL(repoValidate.data.clone_url);
-		cloneUrlObject.username = ghAccessToken;
+		cloneUrlObject.username = template.owner.ghAccessToken;
 		const authenticatedCloneURL = cloneUrlObject.toString();
-
-		console.log(`Cloning git repository ${ghRepoOwner}/${ghRepoName}...`);
-
-		const workspaceUuid = crypto.randomUUID();
-		const volumeName = `codeharbor-${workspaceUuid}`;
 
 		yield* cloneGitRepoIntoVolume(authenticatedCloneURL, volumeName);
 
-		// Create workspace container
+		let entrypoints: string[] | undefined = undefined;
+		if (devcontainerImageName) {
+			const image = yield* imageInspect(devcontainerImageName);
 
-		console.log(`Creating workspace container for ${ghRepoOwner}/${ghRepoName}...`);
+			const metadata = image.Config.Labels['devcontainer.metadata'];
+			if (metadata === undefined) return err(tagged('ImageDevcontainerMetadataMissingError'));
 
-		const workspaceVolumeMountDir = `/config/workspace/${ghRepoName}`;
+			const parsedMetadataResult = DevcontainerImageMetadataSubset.safeParse(
+				yield* JSONSafeParse(metadata)
+			);
+			if (!parsedMetadataResult.success)
+				return err(tagged('ImageDevcontainerMetadataParseError', parsedMetadataResult.error));
 
-		if (openvscodeServerMountPath === undefined)
-			return err(tagged('OpenVSCodeServerMountPathNotSet'));
+			const parsedMetadata = parsedMetadataResult.data;
 
-		const workspaceContainer = yield* await createWorkspaceContainer(
-			workspaceUuid,
-			workspaceVolumeMountDir,
-			openvscodeServerMountPath
-		);
+			entrypoints = parsedMetadata.flatMap((item) => item.entrypoint ?? []);
+			console.log(entrypoints);
+		}
 
-		// Insert workspace into database
+		const entrypointsMerged = entrypoints ? entrypoints.map((e) => e + ' & ').join('') : '';
+		console.log(entrypointsMerged)
+
+		const workspaceContainer = yield* containerCreate({
+			Image: devcontainerImageName ?? 'mcr.microsoft.com/devcontainers/base:ubuntu',
+			name: `codeharbor-code-server-${workspaceUuid}`,
+			// Env: ['CODE_ARGS=--server-base-path /instance'],
+			HostConfig: {
+				Mounts: [
+					{
+						Type: 'volume',
+						Source: `codeharbor-${workspaceUuid}`,
+						Target: workspaceVolumeMountDir
+					},
+					{
+						Type: 'bind',
+						Source: openvscodeServerMountPath,
+						Target: '/openvscode-server',
+						ReadOnly: true
+					}
+				],
+				NetworkMode: dockerNetworkName ?? 'codeharbor',
+				NanoCpus: 1 * 1e9,
+				Memory: 1 * gibi,
+				Init: true
+			},
+			Entrypoint: ['/bin/sh'],
+			Cmd: [
+				'-c',
+				`${entrypointsMerged}
+				/openvscode-server/bin/openvscode-server --host 0.0.0.0 --without-connection-token`,
+				'--'
+			]
+			// User: 'vscode'
+		});
 
 		yield* await wrapDB(
 			db.insert(workspaces).values({
@@ -253,21 +316,7 @@ export const createWorkspace = (
 		return ok();
 	});
 
-function getGhRepoNameFromWorkspaceSource(
-	source: WorkspaceCreateOptions['source']
-): ReturnType<typeof getGhRepoNameFromTemplate> {
-	if (source.type === 'github')
-		return okAsync({
-			ghRepoOwner: source.ghRepoOwner,
-			ghRepoName: source.ghRepoName
-		});
-
-	return getGhRepoNameFromTemplate(source.templateUuid);
-}
-
-const gitImage = 'cgr.dev/chainguard/git';
-
-const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
+export const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
 	safeTry(async function* () {
 		const gitContainer = yield* containerCreate({
 			Image: gitImage,
@@ -290,7 +339,7 @@ const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
 
 		const gitContainerInspectInfo = yield* await containerInspect(gitContainer.id);
 
-		if (gitContainerInspectInfo.State?.ExitCode !== 0)
+		if (gitContainerInspectInfo.State.ExitCode !== 0)
 			return err(tagged('GitCloneError', gitContainerInspectInfo.State.Error));
 
 		containerRemove(gitContainer.id).orTee((err) =>
@@ -298,46 +347,6 @@ const cloneGitRepoIntoVolume = (cloneUrl: string, volumeName: string) =>
 		);
 
 		return ok();
-	});
-
-const gibi = 1024 ** 3;
-
-const createWorkspaceContainer = (
-	workspaceUuid: Uuid,
-	workspaceVolumeMountDir: string,
-	openvscodeServerMountPath: string,
-	image?: string
-) =>
-	containerCreate({
-		Image: image ?? 'mcr.microsoft.com/devcontainers/base:ubuntu',
-		name: `codeharbor-code-server-${workspaceUuid}`,
-		// Env: ['CODE_ARGS=--server-base-path /instance'],
-		HostConfig: {
-			Mounts: [
-				{
-					Type: 'volume',
-					Source: `codeharbor-${workspaceUuid}`,
-					Target: workspaceVolumeMountDir
-				},
-				{
-					Type: 'bind',
-					Source: openvscodeServerMountPath,
-					Target: '/openvscode-server',
-					ReadOnly: true
-				}
-			],
-			NetworkMode: dockerNetworkName ?? 'codeharbor',
-			NanoCpus: 1 * 1e9,
-			Memory: 1 * gibi,
-			Init: true
-		},
-		Entrypoint: [
-			'/bin/sh',
-			'-c',
-			'exec /openvscode-server/bin/openvscode-server --host 0.0.0.0 --without-connection-token',
-			'--'
-		]
-		// User: 'vscode'
 	});
 
 const getAccessibleWorkspaceUuids = (userUuid: Uuid) =>
@@ -374,3 +383,10 @@ export const removeWorkspaceSharedUser = (workspaceUuid: Uuid, userUuidToRemove:
 				)
 			)
 	);
+
+const DevcontainerImageMetadataSubset = z.array(
+	z.object({
+		id: z.string().optional(),
+		entrypoint: z.string().optional()
+	})
+);

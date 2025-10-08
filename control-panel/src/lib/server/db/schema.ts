@@ -110,6 +110,7 @@ export const templates = sqliteTable('templates', {
 	createdAt: integer({ mode: 'timestamp' }).notNull(),
 	ghRepoOwner: text().notNull(),
 	ghRepoName: text().notNull(),
+	devcontainerImage: text(),
 	suggestedCpusLimit: numeric({ mode: 'number' }).notNull().default(1),
 	suggestedMemoryLimitGiB: numeric({ mode: 'number' }).notNull().default(1)
 });
