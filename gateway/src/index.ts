@@ -103,7 +103,8 @@ async function proxyWorkspace(uuid: Uuid, port: number, c: C, next: Next) {
 		containerHostname = data.Name.replace('/', '');
 	} else {
 		const network = data.NetworkSettings.Networks[dockerNetworkName];
-		if (!network) return c.text(`Docker network '${dockerNetworkName}' not found on container`, 500);
+		if (!network)
+			return c.text(`Docker network '${dockerNetworkName}' not found on container`, 500);
 
 		containerHostname = network.IPAddress;
 	}

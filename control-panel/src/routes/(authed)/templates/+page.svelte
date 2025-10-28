@@ -7,10 +7,12 @@
 	import type { ErrorTypes, Tagged } from '$lib/error.js';
 	import { JtoR } from '$lib/result.js';
 	import type { Uuid } from '$lib/types.js';
+	import CopyIcon from '@lucide/svelte/icons/copy';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import OctagonMinusIcon from '@lucide/svelte/icons/octagon-minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SquareMousePointerIcon from '@lucide/svelte/icons/square-mouse-pointer';
+	import { ResultAsync } from 'neverthrow';
 	import { toast } from 'svelte-sonner';
 	import { deleteTemplate as remoteDeleteTemplate } from './templates.remote.js';
 
@@ -19,7 +21,7 @@
 	let deleteDialogOpen = $state(false);
 	let deleting = $state(false);
 
-	export const deleteTemplate = async (uuid: Uuid) => {
+	export async function deleteTemplate(uuid: Uuid) {
 		deleting = true;
 
 		JtoR(await remoteDeleteTemplate(uuid)).match(() => {
@@ -29,12 +31,22 @@
 
 		deleting = false;
 		deleteDialogOpen = false;
-	};
+	}
 
 	const handleWithToast = (errMsg: string) => (err: Tagged<ErrorTypes>) => {
 		toast.error(errMsg, { description: err.message });
 		console.error(err);
 	};
+
+	const copyTemplateLink = (templateUuid: Uuid) =>
+		ResultAsync.fromPromise(
+			navigator.clipboard.writeText(`${location.origin}/workspaces/new/${templateUuid}`),
+			(e) => e as DOMException
+		).match(
+			() => toast.success('Copied template link to clipboard'),
+			(err) =>
+				toast.error('Failed to copy template link to clipboard', { description: err?.message ?? err.toString() })
+		);
 </script>
 
 <div class="flex gap-4">
@@ -70,11 +82,15 @@
 				{/if}
 			</Card.Content>
 
-			<Card.Footer class="mt-auto flex flex-wrap gap-2">
-				<Button href="/workspaces/new/{template.uuid}">
+			<Card.Footer class="mt-auto flex flex-wrap gap-1">
+				<Button href="/workspaces/new/{template.uuid}" class="opacity-100">
 					<SquareMousePointerIcon />
-					Use template</Button
-				>
+					Use template
+				</Button>
+				<Button variant="outline" onclick={() => copyTemplateLink(template.uuid)}>
+					<CopyIcon />
+					Share
+				</Button>
 				{#if page.data.user?.uuid === template.owner.uuid}
 					{@render deleteButton(template.uuid)}
 				{/if}

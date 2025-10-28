@@ -111,6 +111,7 @@ export const templates = sqliteTable('templates', {
 	ghRepoOwner: text().notNull(),
 	ghRepoName: text().notNull(),
 	devcontainerImage: text(),
+	prebuiltExtensionsDirectory: text(),
 	suggestedCpusLimit: numeric({ mode: 'number' }).notNull().default(1),
 	suggestedMemoryLimitGiB: numeric({ mode: 'number' }).notNull().default(1)
 });

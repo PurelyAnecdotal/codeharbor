@@ -20,12 +20,7 @@ export async function POST({ request, locals }) {
 	}
 	const octokit = octokitResult.value;
 
-	const workspaceCreateResult = await createWorkspace(
-		{ name, source },
-		user.uuid,
-		octokit,
-		user.ghAccessToken
-	);
+	const workspaceCreateResult = await createWorkspace({ name, source }, user.uuid, octokit);
 
 	if (workspaceCreateResult.isErr()) {
 		console.error('Failed to create workspace:', workspaceCreateResult.error);

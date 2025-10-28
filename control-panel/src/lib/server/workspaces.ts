@@ -1,5 +1,5 @@
 import { tagged, wrapOctokit } from '$lib/error';
-import { JSONSafeParse, type InferAsyncOk } from '$lib/result';
+import { type InferAsyncOk } from '$lib/result';
 import { dbResult, useDB, wrapDB } from '$lib/server/db';
 import { templates, users, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
 import { jsonGroupArray } from '$lib/server/db/utils';
@@ -10,10 +10,14 @@ import {
 	containerStart,
 	containerWait,
 	getContainerResourceLimits,
-	imageInspect,
-	listContainers
+	listContainers,
+	runTempContainer
 } from '$lib/server/docker';
-import { dockerNetworkName, openvscodeServerMountPath } from '$lib/server/env';
+import {
+	dockerNetworkName,
+	openvscodeServerMountPath as openvscodeServerPath
+} from '$lib/server/env';
+import { getDevcontainerImageMetadata } from '$lib/server/templates';
 import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
@@ -204,8 +208,7 @@ export const createWorkspace = (
 	safeTry(async function* () {
 		const db = yield* dbResult;
 
-		if (openvscodeServerMountPath === undefined)
-			return err(tagged('OpenVSCodeServerMountPathNotSet'));
+		if (openvscodeServerPath === undefined) return err(tagged('OpenVSCodeServerMountPathNotSet'));
 
 		if (source.type === 'github') return err(tagged('GitHubSourceNotSupportedError'));
 
@@ -217,6 +220,7 @@ export const createWorkspace = (
 					ghRepoOwner: templates.ghRepoOwner,
 					ghRepoName: templates.ghRepoName,
 					devcontainerImage: templates.devcontainerImage,
+					prebuiltExtensionsDirectory: templates.prebuiltExtensionsDirectory,
 					owner: {
 						ghAccessToken: users.ghAccessToken
 					}
@@ -247,28 +251,16 @@ export const createWorkspace = (
 		let containerUser = 'root';
 
 		if (devcontainerImageName) {
-			const image = yield* imageInspect(devcontainerImageName);
+			const metadata = yield* getDevcontainerImageMetadata(devcontainerImageName);
 
-			const metadata = image.Config.Labels['devcontainer.metadata'];
-			if (metadata === undefined) return err(tagged('ImageDevcontainerMetadataMissingError'));
-
-			const parsedMetadataResult = DevcontainerImageMetadataSubset.safeParse(
-				yield* JSONSafeParse(metadata)
-			);
-			if (!parsedMetadataResult.success)
-				return err(tagged('ImageDevcontainerMetadataParseError', parsedMetadataResult.error));
-
-			const parsedMetadata = parsedMetadataResult.data;
-
-			entrypoints = parsedMetadata.flatMap((item) => item.entrypoint ?? []);
+			entrypoints = metadata.flatMap((item) => item.entrypoint ?? []);
 			containerUser =
-				parsedMetadata.find((item) => item.containerUser !== undefined)?.containerUser ??
-				containerUser;
+				metadata.find((item) => item.containerUser !== undefined)?.containerUser ?? containerUser;
 
 			if (containerUser !== 'root') {
 				// TODO: assuming that the containerUser has UID 1000
-				const tempContainer = yield* containerCreate({
-					Image: 'oven/bun:alpine',
+				const { remove: removeTempContainer } = yield* runTempContainer({
+					Image: 'alpine:latest',
 					name: `codeharbor-temp-${workspaceUuid}`,
 					HostConfig: {
 						Mounts: [
@@ -283,15 +275,13 @@ export const createWorkspace = (
 					Entrypoint: ['/bin/sh'],
 					Cmd: ['-c', `chown -R 1000:1000 /workspace`, '--']
 				});
-				yield* containerStart(tempContainer.id);
-				yield* containerWait(tempContainer.id);
-				containerRemove(tempContainer.id).orTee((err) =>
-					console.error('Failed to remove temporary container:', err)
-				);
+				removeTempContainer();
 			}
 		} else {
 			// containerUser = 'vscode';
 		}
+
+		const openvscodeServerMountPath = '/openvscode-server';
 
 		const entrypointsMerged = entrypoints ? entrypoints.map((e) => e + '\n').join('') : '';
 
@@ -308,8 +298,8 @@ export const createWorkspace = (
 					},
 					{
 						Type: 'bind',
-						Source: openvscodeServerMountPath,
-						Target: '/openvscode-server',
+						Source: openvscodeServerPath,
+						Target: openvscodeServerMountPath,
 						ReadOnly: true
 					}
 				],
@@ -322,7 +312,10 @@ export const createWorkspace = (
 			Cmd: [
 				'-c',
 				`${entrypointsMerged}
-				/openvscode-server/bin/openvscode-server --host 0.0.0.0 --without-connection-token`,
+				/openvscode-server/bin/openvscode-server \
+					--host 0.0.0.0 \
+					--without-connection-token \
+					${template.prebuiltExtensionsDirectory !== null ? `--extensions-dir ${template.prebuiltExtensionsDirectory}` : ''}`,
 				'--'
 			],
 			User: containerUser
@@ -413,12 +406,3 @@ export const removeWorkspaceSharedUser = (workspaceUuid: Uuid, userUuidToRemove:
 				)
 			)
 	);
-
-const DevcontainerImageMetadataSubset = z.array(
-	z.object({
-		id: z.string().optional(),
-		entrypoint: z.string().optional(),
-		containerUser: z.string().optional(),
-		remoteUser: z.string().optional()
-	})
-);

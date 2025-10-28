@@ -4,6 +4,7 @@ Docker should be already installed on the server.
 
 ```bash
 # Pull runtime images
+docker image pull alpine:latest
 docker image pull cgr.dev/chainguard/git:latest
 docker image pull mcr.microsoft.com/devcontainers/base:ubuntu
 

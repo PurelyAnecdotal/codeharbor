@@ -1,6 +1,7 @@
-import { catchWithTag } from '$lib/error';
+import { catchWithTag, tagged } from '$lib/error';
 import { dockerSocketPath } from '$lib/server/env';
 import Dockerode from 'dockerode';
+import { err, ok, safeTry } from 'neverthrow';
 
 export const docker = new Dockerode({ socketPath: dockerSocketPath ?? '/var/run/docker.sock' });
 
@@ -43,8 +44,14 @@ export const containerLogs = (
 	logOptions?: Dockerode.ContainerLogsOptions & { follow: false }
 ) => catchWithTag(docker.getContainer(containerId).logs(logOptions), 'ContainerLogsError');
 
+export const containerArchive = (containerId: string, path: string) =>
+	catchWithTag(docker.getContainer(containerId).getArchive({ path }), 'ContainerArchiveError');
+
 export const imageInspect = (imageId: string) =>
 	catchWithTag(docker.getImage(imageId).inspect(), 'ImageInspectError');
+
+export const imageBuild = (...params: Parameters<Dockerode['buildImage']>) =>
+	catchWithTag(docker.buildImage(...params), 'ImageBuildError');
 
 export function calculateContainerResourceUsage({
 	cpu_stats,
@@ -74,3 +81,35 @@ export const getContainerResourceLimits = (dockerId: string) =>
 		cpusLimit: info.HostConfig.NanoCpus ? info.HostConfig.NanoCpus * 1e-9 : undefined,
 		memoryLimitGiB: info.HostConfig.Memory ? info.HostConfig.Memory / gibi : undefined
 	}));
+
+export const runTempContainer = (createOptions: Dockerode.ContainerCreateOptions) =>
+	safeTry(async function* () {
+		const container = yield* containerCreate(createOptions);
+		yield* containerStart(container.id);
+		yield* containerWait(container.id);
+		yield* validateContainerExit(container.id);
+
+		return ok({
+			id: container.id,
+			remove: () =>
+				containerRemove(container.id).orTee((err) =>
+					console.error(`Failed to remove temporary container ${createOptions.name}`, err)
+				)
+		});
+	});
+
+const validateContainerExit = (containerId: string) =>
+	safeTry(async function* () {
+		const inspect = yield* containerInspect(containerId);
+		if (inspect.State.ExitCode !== 0) {
+			const logs = await containerLogs(containerId, { stderr: true, follow: false });
+			return err(
+				tagged('ContainerExitCodeError', {
+					exit_code: inspect.State.ExitCode,
+					error: inspect.State.Error,
+					logs: logs.isOk() ? logs.value.toString() : logs.error,
+				})
+			);
+		}
+		return ok();
+	});

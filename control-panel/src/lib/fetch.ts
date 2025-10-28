@@ -4,7 +4,7 @@ import { letterRegex, nameRegex, type Uuid } from '$lib/types';
 import { ResultAsync } from 'neverthrow';
 import { toast } from 'svelte-sonner';
 
-export const safeFetch = (input: RequestInfo | URL, init?: RequestInit) =>
+export const safeFetch = (input: RequestInfo | URL, init?: BunFetchRequestInit) =>
 	ResultAsync.fromPromise(fetch(input, init), (e) => e as DOMException | TypeError);
 
 export const workspaceCreate = (options: WorkspaceCreateOptions) =>

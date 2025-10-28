@@ -1,21 +1,22 @@
 import { tagged } from '$lib/error';
+import { safeFetch } from '$lib/fetch';
 import { JSONSafeParse } from '$lib/result';
 import { useDB } from '$lib/server/db';
 import { templates, users } from '$lib/server/db/schema';
 import {
-	containerCreate,
-	containerInspect,
+	containerArchive,
 	containerLogs,
-	containerRemove,
-	containerStart,
-	containerWait
+	imageInspect,
+	runTempContainer
 } from '$lib/server/docker';
+import { dockerSocketPath, openvscodeServerMountPath } from '$lib/server/env';
 import { cloneGitRepoIntoVolume } from '$lib/server/workspaces';
 import { githubRepoRegex, type Uuid } from '$lib/types';
 import { desc, eq, getTableColumns } from 'drizzle-orm';
 import { err, ok, safeTry } from 'neverthrow';
+import { Readable } from 'node:stream';
+import * as tar from 'tar-stream';
 import z from 'zod';
-import { dockerSocketPath } from './env';
 
 export async function getTemplatesForUser(userUuid: Uuid) {
 	const templatesResult = await useDB((db) =>
@@ -79,6 +80,7 @@ export const createTemplate = (
 
 		const templateUuid = crypto.randomUUID();
 		let builtImageName: string | undefined = undefined;
+		let prebuiltExtensionsDirectory: string | undefined = undefined;
 
 		if (devcontainer) {
 			const gitCloneUrl = `https://github.com/${ghRepoOwner}/${ghRepoName}.git`;
@@ -87,11 +89,15 @@ export const createTemplate = (
 
 			builtImageName = `codeharbor-template-${templateUuid}`;
 
+			console.log(`Cloning git repo ${gitCloneUrl} into volume ${volumeName}`);
+
 			yield* cloneGitRepoIntoVolume(gitCloneUrl, volumeName);
 
-			const devcontainerCli = yield* containerCreate({
+			console.log(`Building devcontainer image for template ${name}`);
+
+			const { id: devcontainerCliId, remove: removeTempContainer } = yield* runTempContainer({
 				name: `codeharbor-template-builder-${templateUuid}`,
-				Image: 'devcontainercli',
+				Image: 'devcontainer-cli',
 				Cmd: ['build', '--workspace-folder', '/workspace', '--image-name', builtImageName],
 				HostConfig: {
 					Mounts: [
@@ -109,18 +115,13 @@ export const createTemplate = (
 				}
 			});
 
-			yield* containerStart(devcontainerCli.id);
-			yield* containerWait(devcontainerCli.id);
-
-			const devcontainerCliInfo = yield* containerInspect(devcontainerCli.id);
-			if (devcontainerCliInfo.State.ExitCode !== 0)
-				return err(tagged('DevcontainerCliError', devcontainerCliInfo.State.Error));
-
-			const logs = (yield* containerLogs(devcontainerCli.id, {
+			const logs = (yield* containerLogs(devcontainerCliId, {
 				tail: 1,
 				follow: false,
 				stdout: true
 			})).toString();
+
+			removeTempContainer();
 
 			const outputJson = logs.slice(logs.indexOf('{'));
 
@@ -141,9 +142,19 @@ export const createTemplate = (
 					)
 				);
 
-			containerRemove(devcontainerCli.id).orTee((err) =>
-				console.error('Failed to remove devcontainer cli container:', err)
-			);
+			console.log(`Built devcontainer image ${builtImageName} successfully.`);
+
+			const metadata = yield* getDevcontainerImageMetadata(builtImageName);
+
+			const extensions = metadata.flatMap((m) => m.customizations?.vscode?.extensions ?? []);
+
+			if (extensions.length > 0) {
+				prebuiltExtensionsDirectory = '/extensions';
+				console.log(
+					`Building ${extensions.length} extensions into image ${builtImageName}:\n - ${extensions.join('\n - ')}`
+				);
+				yield* buildExtensionsIntoImage(extensions, prebuiltExtensionsDirectory, builtImageName);
+			}
 		}
 
 		yield* useDB((db) =>
@@ -155,7 +166,8 @@ export const createTemplate = (
 				createdAt: new Date(),
 				ghRepoName,
 				ghRepoOwner,
-				devcontainerImage: builtImageName
+				devcontainerImage: builtImageName,
+				prebuiltExtensionsDirectory
 			})
 		);
 
@@ -164,5 +176,140 @@ export const createTemplate = (
 
 const DevcontainerBuildCliOutputSchema = z.object({
 	outcome: z.literal('success'),
-	imageName: z.tuple([z.string()])
+	imageName: z.array(z.string())
 });
+
+export const DevcontainerImageMetadataSubset = z.array(
+	z.object({
+		id: z.string().optional(),
+		entrypoint: z.string().optional(),
+		customizations: z
+			.object({
+				vscode: z
+					.object({
+						extensions: z.array(z.string()).optional()
+					})
+					.optional()
+			})
+			.optional(),
+		containerUser: z.string().optional(),
+		remoteUser: z.string().optional()
+	})
+);
+
+export const getDevcontainerImageMetadata = (imageName: string) =>
+	safeTry(async function* () {
+		const image = yield* imageInspect(imageName);
+
+		const metadata = image.Config.Labels?.['devcontainer.metadata'];
+		if (metadata === undefined) return err(tagged('ImageDevcontainerMetadataMissingError'));
+
+		const parsedMetadataResult = DevcontainerImageMetadataSubset.safeParse(
+			yield* JSONSafeParse(metadata)
+		);
+
+		if (!parsedMetadataResult.success)
+			return err(tagged('ImageDevcontainerMetadataParseError', parsedMetadataResult.error));
+
+		return ok(parsedMetadataResult.data);
+	});
+
+const textDecoder = new TextDecoder();
+
+const buildExtensionsIntoImage = (extensions: string[], extensionsDirectory: string, imageTag: string, ) =>
+	safeTry(async function* () {
+		if (openvscodeServerMountPath === undefined)
+			return err(tagged('OpenVSCodeServerMountPathNotSet'));
+
+		const { id: extensionContainerId, remove: removeTempContainer } = yield* runTempContainer({
+			Image: 'mcr.microsoft.com/devcontainers/base:ubuntu',
+			name: `codeharbor-extension-builder-${imageTag}`,
+			HostConfig: {
+				Mounts: [
+					{
+						Type: 'bind',
+						Source: openvscodeServerMountPath,
+						Target: '/openvscode-server',
+						ReadOnly: true
+					}
+				],
+				Init: true
+			},
+			Entrypoint: ['/bin/sh'],
+			Cmd: [
+				'-c',
+				`for e in ${extensions.map((e) => `"${e}"`).join(' ')}; do
+					/openvscode-server/bin/openvscode-server --install-extension "$e" --extensions-dir /extensions
+				done
+				chown -R 1000:1000 /extensions
+				`,
+				'--'
+			]
+		});
+
+		const extensionsTarStream = yield* containerArchive(extensionContainerId, '/extensions');
+
+		removeTempContainer();
+
+		console.log('Repacking tar');
+
+		const extractStream = tar.extract();
+		const packStream = tar.pack();
+
+		extractStream.on('entry', (header, stream, callback) => {
+			stream.pipe(packStream.entry(header, callback));
+		});
+
+		extractStream.on('finish', () => {
+			packStream.entry(
+				{ name: 'Dockerfile' },
+				`FROM ${imageTag}
+				COPY extensions ${extensionsDirectory}`,
+				(err) => {
+					if (err) throw err;
+					packStream.finalize();
+				}
+			);
+		});
+
+		extensionsTarStream.pipe(extractStream);
+
+		console.log(`Building new image ${imageTag} with extensions...`);
+
+		const query = new URLSearchParams({ t: imageTag, version: '2' });
+		const res = yield* await safeFetch(`http://localhost/v1.49/build?${query}`, {
+			unix: dockerSocketPath ?? '/var/run/docker.sock',
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-tar'
+			},
+			body: Readable.toWeb(packStream, {
+				strategy: { highWaterMark: 32 * 1024 }
+			}) as unknown as ReadableStream<Uint8Array>
+		});
+
+		if (!res.ok) return err(tagged('DevcontainerExtensionImageBuildError', await res.text()));
+		if (res.body === null)
+			return err(tagged('DevcontainerExtensionImageBuildError', 'Body is empty'));
+
+		for await (const chunk of streamAsyncIterable(res.body)) {
+			console.log(textDecoder.decode(chunk, { stream: true }));
+		}
+
+		console.log(`Built image ${imageTag} with extensions successfully.`);
+
+		return ok();
+	});
+
+async function* streamAsyncIterable(stream: ReadableStream<Uint8Array>) {
+	const reader = stream.getReader();
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) return;
+			yield value;
+		}
+	} finally {
+		reader.releaseLock();
+	}
+}

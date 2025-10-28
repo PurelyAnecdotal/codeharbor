@@ -13,6 +13,7 @@ const errorMessages = {
 	ContainerWaitError: 'Failed to wait for container',
 	ContainersListError: 'Failed to list containers',
 	ContainerLogsError: 'Failed to get container logs',
+	ContainerArchiveError: 'Failed to get container archive',
 	ContainerNotFoundError: 'Container not found',
 	ContainerNotRunningError: 'Container is not running',
 	OctokitError: 'Error communicating with GitHub',
@@ -40,8 +41,13 @@ const errorMessages = {
 	GitHubSourceNotSupportedError:
 		'Creating workspaces from github repositories directly is not yet implemented',
 	ImageInspectError: 'Failed to inspect Docker image',
+	ImageBuildError: 'Failed to build Docker image',
 	ImageDevcontainerMetadataMissingError: 'Docker image is missing devcontainer metadata',
-	ImageDevcontainerMetadataParseError: 'Failed to parse devcontainer metadata from image'
+	ImageDevcontainerMetadataParseError: 'Failed to parse devcontainer metadata from image',
+	ContainerExitCodeError: 'Container exited with a non-zero exit code',
+	TarPackError: 'Failed to create tar pack',
+	TarUnpackError: 'Failed to extract tar archive',
+	DevcontainerExtensionImageBuildError: 'Failed to build devcontainer image with extensions'
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 
@@ -74,7 +80,10 @@ export const hideCause = <Tag extends ErrorTypes>(taggedError: Tagged<Tag>): Tag
 export const catchWithTag = <T, Tag extends ErrorTypes>(
 	promise: PromiseLike<T>,
 	tag: Tag
-): ResultAsync<T, Tagged<Tag>> => ResultAsync.fromPromise(promise, (err) => tagged(tag, err));
+): ResultAsync<T, Tagged<Tag>> =>
+	ResultAsync.fromPromise(promise, (err) =>
+		tagged(tag, Error.isError(err) ? err : new Error(String(err)))
+	);
 
 export const wrapDockerode = <T>(dockerodePromise: PromiseLike<T>) =>
 	catchWithTag(dockerodePromise, 'DockerodeError');

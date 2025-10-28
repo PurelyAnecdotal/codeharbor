@@ -1,0 +1,16 @@
+diff --git a/var/home/bryce/dev/codeharbor/node_modules/@types/dockerode/.bun-tag-c6ca5f563e7f38f3 b/.bun-tag-c6ca5f563e7f38f3
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/index.d.ts b/index.d.ts
+index c614e92d71a3d077a5e056fd7a8710c5f1e0f514..c8ba997710fc031eaa5b2045ac2e46e603fa6a27 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -85,7 +85,7 @@ declare namespace Dockerode {
+         copy(options?: {}): Promise<any>;
+ 
+         getArchive(options: {}, callback: Callback<NodeJS.ReadableStream>): void;
+-        getArchive(options: {}): Promise<NodeJS.ReadableStream>;
++        getArchive(options: {}): Promise<stream.Readable>;
+ 
+         infoArchive(options: {}, callback: Callback<any>): void;
+         infoArchive(options: {}): Promise<any>;
