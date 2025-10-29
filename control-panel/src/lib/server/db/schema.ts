@@ -112,6 +112,7 @@ export const templates = sqliteTable('templates', {
 	ghRepoName: text().notNull(),
 	devcontainerImage: text(),
 	prebuiltExtensionsDirectory: text(),
+	portLabelsJson: text({ mode: 'json' }).$type<Record<string, string>>(),
 	suggestedCpusLimit: numeric({ mode: 'number' }).notNull().default(1),
 	suggestedMemoryLimitGiB: numeric({ mode: 'number' }).notNull().default(1)
 });

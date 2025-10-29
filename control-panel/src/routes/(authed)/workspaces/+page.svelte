@@ -11,7 +11,9 @@
 
 	const workspacesListQuery = getWorkspaces();
 
-	const current = $derived(workspacesListQuery.ready ? JtoR(workspacesListQuery.current) : undefined)
+	const current = $derived(
+		workspacesListQuery.ready ? JtoR(workspacesListQuery.current) : undefined
+	);
 </script>
 
 <div class="space-y-4">

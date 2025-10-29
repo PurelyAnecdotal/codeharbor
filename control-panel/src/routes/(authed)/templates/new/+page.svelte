@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import GithubIcon from '$lib/components/GitHubIcon.svelte';
 	import * as Alert from '$lib/components/ui/alert';
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
@@ -8,12 +9,14 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Popover from '$lib/components/ui/popover';
+	import * as Table from '$lib/components/ui/table/index.js';
 	import { JtoR } from '$lib/result.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
-	import GithubIcon from '$lib/components/GitHubIcon.svelte';
+	import EthernetPortIcon from '@lucide/svelte/icons/ethernet-port';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { createTemplate } from '../templates.remote.js';
@@ -67,6 +70,21 @@
 			return;
 		}
 
+		if (
+			portLabels.some(
+				(pl) => pl.port === undefined || pl.label === undefined || pl.label.length === 0
+			)
+		) {
+			toast.error('All port labels must have a port and a label');
+			return;
+		}
+
+		const ports = portLabels.map((pl) => pl.port).filter((p) => p !== undefined);
+		if (ports.length !== new Set(ports).size) {
+			toast.error('Port numbers must be unique');
+			return;
+		}
+
 		const repo = reposResult.value.find((r) => r.id === selectedRepoID);
 		if (!repo) return;
 
@@ -78,7 +96,8 @@
 				description: description.length > 0 ? description : undefined,
 				ghRepoOwner: repo.owner.login,
 				ghRepoName: repo.name,
-				devcontainer: useDevcontainerConfig
+				devcontainer: useDevcontainerConfig,
+				portLabels: portLabels.map((pl) => [pl.port!, pl.label!] as const)
 			})
 		).match(
 			() => goto('/templates'),
@@ -87,6 +106,13 @@
 
 		creating = false;
 	}
+
+	interface PortLabel {
+		port?: number;
+		label?: string;
+	}
+
+	let portLabels: PortLabel[] = $state([]);
 </script>
 
 <h1 class="mb-8 text-3xl">Create a new template</h1>
@@ -165,6 +191,62 @@
 		</p>
 	</div>
 </div>
+
+<h2 class="mt-8 text-lg">Labeled Ports</h2>
+<p class="text-muted-foreground mt-2 w-2xl text-sm">
+	All ports are forwarded and can be accessed by changing the port number at the end of the
+	subdomain. However, you can add them as buttons to make them user-accessible. This is useful to,
+	for example, expose a noVNC server. This will also be automatically set by the
+	<span class="font-mono">portsAttributes</span> field in the
+	<span class="font-mono">devcontainer.json</span>.
+</p>
+
+<Table.Root class="w-fit">
+	<Table.Header>
+		<Table.Row>
+			<Table.Head class="w-32">Port</Table.Head>
+			<Table.Head class="w-sm">Label</Table.Head>
+		</Table.Row>
+	</Table.Header>
+	<Table.Body>
+		{#each portLabels as portLabel}
+			<Table.Row>
+				<Table.Cell class="w-32">
+					<Input
+						type="text"
+						inputmode="numeric"
+						autocomplete="off"
+						bind:value={portLabel.port}
+						oninput={(e) => {
+							let value = parseInt(e.currentTarget.value.replaceAll(/[^0-9]/g, ''));
+							if (value > 65535) value = 65535;
+							if (value < 0) value = 0;
+							portLabel.port = isNaN(value) ? undefined : value;
+						}}
+					/>
+				</Table.Cell>
+
+				<Table.Cell class="w-sm">
+					<Input type="text" autocomplete="off" bind:value={portLabel.label} />
+				</Table.Cell>
+
+				<Table.Cell>
+					<Button
+						variant="outline"
+						onclick={() => (portLabels = portLabels.filter((pl) => pl !== portLabel))}
+					>
+						<XIcon />
+					</Button>
+				</Table.Cell>
+			</Table.Row>
+		{/each}
+	</Table.Body>
+</Table.Root>
+
+<Button variant="outline" class="mt-4" onclick={() => (portLabels = [...portLabels, {}])}>
+	<EthernetPortIcon />
+	Add Port Label
+</Button>
 
 <div class="mt-8">
 	<Button onclick={create} disabled={creating}>

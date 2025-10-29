@@ -7,6 +7,7 @@ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[
 export const isUuid = (str: string): str is Uuid => uuidRegex.test(str);
 
 export const zUuid = () => z.uuidv4().transform((val) => val as Uuid);
+export const zPort = () => z.int().min(0).max(65535);
 
 export const nameRegex = /^[a-z ,.'-]{5,30}$/i;
 export const letterRegex = /[a-z]+/i;

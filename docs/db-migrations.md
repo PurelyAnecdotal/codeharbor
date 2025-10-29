@@ -12,7 +12,6 @@ apk add git
 git clone --depth=1 https://github.com/PurelyAnecdotal/codeharbor.git .
 
 bun install
-bun add -D @libsql/client
 
 cd control-panel
 

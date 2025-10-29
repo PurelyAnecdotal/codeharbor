@@ -183,6 +183,15 @@
 				<ScreenShareIcon />
 				Open
 			</Button>
+			{#if workspace.template?.portLabels}
+				{#each Object.entries(workspace.template.portLabels) as [port, label]}
+					<Button
+						href="{pageUrlObj.protocol}//{workspace.uuid}-{port}.{pageUrlObj.host}/?folder={workspace.folder}"
+					>
+						{label}
+					</Button>
+				{/each}
+			{/if}
 			<Button onclick={stop} variant="outline" disabled={stopping}>
 				<MonitorXIcon />
 				Stop

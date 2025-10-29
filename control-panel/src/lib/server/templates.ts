@@ -1,6 +1,6 @@
 import { tagged } from '$lib/error';
 import { safeFetch } from '$lib/fetch';
-import { JSONSafeParse } from '$lib/result';
+import { JSONSafeParse, zResult } from '$lib/result';
 import { useDB } from '$lib/server/db';
 import { templates, users } from '$lib/server/db/schema';
 import {
@@ -11,7 +11,7 @@ import {
 } from '$lib/server/docker';
 import { dockerSocketPath, openvscodeServerMountPath } from '$lib/server/env';
 import { cloneGitRepoIntoVolume } from '$lib/server/workspaces';
-import { githubRepoRegex, type Uuid } from '$lib/types';
+import { githubRepoRegex, zPort, type Uuid } from '$lib/types';
 import { desc, eq, getTableColumns } from 'drizzle-orm';
 import { err, ok, safeTry } from 'neverthrow';
 import { Readable } from 'node:stream';
@@ -60,13 +60,21 @@ export const TemplateCreateOptions = z.object({
 	description: z.string().optional(),
 	ghRepoOwner: z.string().regex(githubRepoRegex),
 	ghRepoName: z.string().regex(githubRepoRegex),
-	devcontainer: z.boolean().optional()
+	devcontainer: z.boolean().optional(),
+	portLabels: z.array(z.tuple([zPort(), z.string()])).optional()
 });
 
 export type TemplateCreateOptions = z.infer<typeof TemplateCreateOptions>;
 
 export const createTemplate = (
-	{ name, description, ghRepoName, ghRepoOwner, devcontainer }: TemplateCreateOptions,
+	{
+		name,
+		description,
+		ghRepoName,
+		ghRepoOwner,
+		devcontainer,
+		portLabels: portLabelsEntries
+	}: TemplateCreateOptions,
 	ownerUuid: Uuid
 ) =>
 	safeTry(async function* () {
@@ -81,6 +89,8 @@ export const createTemplate = (
 		const templateUuid = crypto.randomUUID();
 		let builtImageName: string | undefined = undefined;
 		let prebuiltExtensionsDirectory: string | undefined = undefined;
+
+		let portLabels: Record<string, string> = Object.fromEntries(portLabelsEntries ?? []);
 
 		if (devcontainer) {
 			const gitCloneUrl = `https://github.com/${ghRepoOwner}/${ghRepoName}.git`;
@@ -155,6 +165,23 @@ export const createTemplate = (
 				);
 				yield* buildExtensionsIntoImage(extensions, prebuiltExtensionsDirectory, builtImageName);
 			}
+
+			const devcontainerPortLabels: Record<string, string> = Object.fromEntries(
+				Object.entries(
+					metadata
+						.flatMap((m) => (m.portsAttributes ? [m.portsAttributes] : []))
+						.reduce((acc, curr) => ({ ...acc, ...curr }), {})
+				).flatMap(([portString, { label }]) => {
+					const port = zResult(zPort().safeParse(Number(portString)));
+					if (port.isErr()) return [];
+
+					if (label === undefined) return [];
+
+					return [[port.value, label] as const];
+				})
+			);
+
+			portLabels = { ...devcontainerPortLabels, ...(portLabels ?? {}) };
 		}
 
 		yield* useDB((db) =>
@@ -167,7 +194,8 @@ export const createTemplate = (
 				ghRepoName,
 				ghRepoOwner,
 				devcontainerImage: builtImageName,
-				prebuiltExtensionsDirectory
+				prebuiltExtensionsDirectory,
+				portLabelsJson: portLabels
 			})
 		);
 
@@ -193,7 +221,15 @@ export const DevcontainerImageMetadataSubset = z.array(
 			})
 			.optional(),
 		containerUser: z.string().optional(),
-		remoteUser: z.string().optional()
+		remoteUser: z.string().optional(),
+		portsAttributes: z
+			.record(
+				z.string(),
+				z.object({
+					label: z.string().optional()
+				})
+			)
+			.optional()
 	})
 );
 
@@ -216,7 +252,11 @@ export const getDevcontainerImageMetadata = (imageName: string) =>
 
 const textDecoder = new TextDecoder();
 
-const buildExtensionsIntoImage = (extensions: string[], extensionsDirectory: string, imageTag: string, ) =>
+const buildExtensionsIntoImage = (
+	extensions: string[],
+	extensionsDirectory: string,
+	imageTag: string
+) =>
 	safeTry(async function* () {
 		if (openvscodeServerMountPath === undefined)
 			return err(tagged('OpenVSCodeServerMountPathNotSet'));

@@ -2,12 +2,15 @@
 	import { page } from '$app/state';
 	import GithubIcon from '$lib/components/GitHubIcon.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index';
+	import { Badge } from '$lib/components/ui/badge';
+	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import type { ErrorTypes, Tagged } from '$lib/error.js';
 	import { JtoR } from '$lib/result.js';
 	import type { Uuid } from '$lib/types.js';
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import EthernetPortIcon from '@lucide/svelte/icons/ethernet-port';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import OctagonMinusIcon from '@lucide/svelte/icons/octagon-minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -15,6 +18,7 @@
 	import { ResultAsync } from 'neverthrow';
 	import { toast } from 'svelte-sonner';
 	import { deleteTemplate as remoteDeleteTemplate } from './templates.remote.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
 
 	let { data } = $props();
 
@@ -45,7 +49,9 @@
 		).match(
 			() => toast.success('Copied template link to clipboard'),
 			(err) =>
-				toast.error('Failed to copy template link to clipboard', { description: err?.message ?? err.toString() })
+				toast.error('Failed to copy template link to clipboard', {
+					description: err?.message ?? err.toString()
+				})
 		);
 </script>
 
@@ -78,21 +84,50 @@
 
 			<Card.Content>
 				{#if template.description !== null}
-					<p class="text-sm break-words text-gray-300">{template.description}</p>
+					<p class="text-sm wrap-break-word text-gray-300">{template.description}</p>
 				{/if}
 			</Card.Content>
 
 			<Card.Footer class="mt-auto flex flex-wrap gap-1">
-				<Button href="/workspaces/new/{template.uuid}" class="opacity-100">
-					<SquareMousePointerIcon />
-					Use template
-				</Button>
-				<Button variant="outline" onclick={() => copyTemplateLink(template.uuid)}>
-					<CopyIcon />
-					Share
-				</Button>
+				<ButtonGroup.Root>
+					<Button href="/workspaces/new/{template.uuid}" class="opacity-100">
+						<SquareMousePointerIcon />
+						Use template
+					</Button>
+					<Button variant="outline" onclick={() => copyTemplateLink(template.uuid)}>
+						<CopyIcon />
+						Share
+					</Button>
+				</ButtonGroup.Root>
 				{#if page.data.user?.uuid === template.owner.uuid}
 					{@render deleteButton(template.uuid)}
+				{/if}
+				{#if template.portLabelsJson}
+					<Sheet.Root>
+						<Sheet.Trigger>
+							<Button variant="outline">
+								<EthernetPortIcon /> Ports
+								<Badge
+									class="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums"
+									variant="outline"
+								>
+									{Object.keys(template.portLabelsJson).length}
+								</Badge>
+							</Button>
+						</Sheet.Trigger>
+						<Sheet.Content>
+							<Sheet.Header>
+								<Sheet.Title>Labeled Ports</Sheet.Title>
+
+								{#each Object.entries(template.portLabelsJson) as [port, label]}
+									<div class="flex items-center justify-between gap-4 border-b py-2">
+										<span>{label}</span>
+										<span class="font-mono text-sm text-gray-400">{port}</span>
+									</div>
+								{/each}
+							</Sheet.Header>
+						</Sheet.Content>
+					</Sheet.Root>
 				{/if}
 				<Button
 					href="https://github.com/{template.ghRepoOwner}/{template.ghRepoName}"
@@ -100,7 +135,7 @@
 					variant="outline"
 				>
 					<GithubIcon class="w-4 fill-white" />
-					View
+					Source
 				</Button>
 			</Card.Footer>
 		</Card.Root>

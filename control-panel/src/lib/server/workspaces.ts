@@ -44,7 +44,8 @@ export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
 						uuid: templates.uuid,
 						name: templates.name,
 						ghRepoName: templates.ghRepoName,
-						ghRepoOwner: templates.ghRepoOwner
+						ghRepoOwner: templates.ghRepoOwner,
+						portLabels: templates.portLabelsJson
 					},
 					owner: {
 						uuid: users.uuid,

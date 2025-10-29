@@ -12,6 +12,6 @@
 
 <p>Set a name to continue. You can change this at any time.</p>
 
-<Input bind:value={name} placeholder="Name" class="w-full max-w-sm my-2" />
+<Input bind:value={name} placeholder="Name" class="my-2 w-full max-w-sm" />
 
 <Button onclick={() => setName(name)}>Next</Button>

@@ -1,9 +1,12 @@
 import { command, getRequestEvent } from '$app/server';
-import { hideCause, tagged } from '$lib/error';
+import { hideCause, isTagged, tagged } from '$lib/error';
 import { RAtoJ } from '$lib/result';
 import { dbResult, wrapDB } from '$lib/server/db';
 import { templates } from '$lib/server/db/schema';
-import { createTemplate as createTemplateInternal, TemplateCreateOptions } from '$lib/server/templates';
+import {
+	createTemplate as createTemplateInternal,
+	TemplateCreateOptions
+} from '$lib/server/templates';
 import { zUuid } from '$lib/types';
 import { eq } from 'drizzle-orm';
 import { err, ok, safeTry } from 'neverthrow';
@@ -13,13 +16,13 @@ export const createTemplate = command(TemplateCreateOptions, (options) =>
 		safeTry(async function* () {
 			const { user } = getRequestEvent().locals;
 			if (!user) return err(tagged('UnauthorizedError'));
-			
+
 			yield* createTemplateInternal(options, user.uuid);
 
 			return ok();
 		})
 			.orTee(console.error)
-			.mapErr(hideCause)
+			.mapErr((err) => (isTagged(err) ? hideCause(err) : err))
 	)
 );
 

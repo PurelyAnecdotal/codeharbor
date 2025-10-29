@@ -107,7 +107,7 @@ const validateContainerExit = (containerId: string) =>
 				tagged('ContainerExitCodeError', {
 					exit_code: inspect.State.ExitCode,
 					error: inspect.State.Error,
-					logs: logs.isOk() ? logs.value.toString() : logs.error,
+					logs: logs.isOk() ? logs.value.toString() : logs.error
 				})
 			);
 		}

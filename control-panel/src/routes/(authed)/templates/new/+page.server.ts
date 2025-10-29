@@ -16,5 +16,6 @@ export async function load({ locals }) {
 
 	const octokit = octokitResult.value;
 
-	return { repos: (await getUserGitHubRepos(octokit)).mapErr(hideCause) };
+	// return { repos: ok([] as Awaited<ReturnType<typeof octokit.rest.repos.listForAuthenticatedUser>>['data']) };
+	return { repos: (await getUserGitHubRepos(octokit)).orTee(console.error).mapErr(hideCause) };
 }

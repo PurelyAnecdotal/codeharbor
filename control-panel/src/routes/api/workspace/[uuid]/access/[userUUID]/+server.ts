@@ -1,4 +1,8 @@
-import { addWorkspaceSharedUser, removeWorkspaceSharedUser, validateWorkspaceAccess } from '$lib/server/workspaces';
+import {
+	addWorkspaceSharedUser,
+	removeWorkspaceSharedUser,
+	validateWorkspaceAccess
+} from '$lib/server/workspaces';
 import { isUuid } from '$lib/types';
 
 export async function PUT({ locals, params }) {
