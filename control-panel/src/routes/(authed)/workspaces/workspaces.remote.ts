@@ -1,6 +1,5 @@
 import { command, getRequestEvent, query } from '$app/server';
 import { hideCause, tagged } from '$lib/error';
-import { RAtoJ } from '$lib/result';
 import {
 	calculateContainerResourceUsage,
 	containerRemove,
@@ -20,18 +19,16 @@ import { err, ok, safeTry } from 'neverthrow';
 import z from 'zod';
 
 export const getWorkspaces = query(() =>
-	RAtoJ(
-		safeTry(async function* () {
-			const { user } = getRequestEvent().locals;
-			if (!user) redirect(307, '/');
+	safeTry(async function* () {
+		const { user } = getRequestEvent().locals;
+		if (!user) redirect(307, '/');
 
-			const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
+		const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
 
-			return ok(workspacesList);
-		})
-			.orTee(console.error)
-			.mapErr(hideCause)
-	)
+		return ok(workspacesList);
+	})
+		.orTee(console.error)
+		.mapErr(hideCause)
 );
 
 export const getWorkspaceStats = query(zUuid(), (workspaceUuid) =>
@@ -50,54 +47,48 @@ export const getWorkspaceStats = query(zUuid(), (workspaceUuid) =>
 );
 
 export const startWorkspace = command(zUuid(), (workspaceUuid) =>
-	RAtoJ(
-		safeTry(async function* () {
-			const { user } = getRequestEvent().locals;
-			if (!user) return err(tagged('UnauthorizedError'));
+	safeTry(async function* () {
+		const { user } = getRequestEvent().locals;
+		if (!user) return err(tagged('UnauthorizedError'));
 
-			const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
+		const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
-			yield* containerStart(dockerId);
+		yield* containerStart(dockerId);
 
-			return ok();
-		})
-			.orTee(console.error)
-			.mapErr(hideCause)
-	)
+		return ok();
+	})
+		.orTee(console.error)
+		.mapErr(hideCause)
 );
 
 export const stopWorkspace = command(zUuid(), (workspaceUuid) =>
-	RAtoJ(
-		safeTry(async function* () {
-			const { user } = getRequestEvent().locals;
-			if (!user) return err(tagged('UnauthorizedError'));
+	safeTry(async function* () {
+		const { user } = getRequestEvent().locals;
+		if (!user) return err(tagged('UnauthorizedError'));
 
-			const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
+		const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
-			yield* containerStop(dockerId);
+		yield* containerStop(dockerId);
 
-			return ok();
-		})
-			.orTee(console.error)
-			.mapErr(hideCause)
-	)
+		return ok();
+	})
+		.orTee(console.error)
+		.mapErr(hideCause)
 );
 
 export const deleteWorkspace = command(zUuid(), (workspaceUuid) =>
-	RAtoJ(
-		safeTry(async function* () {
-			const { user } = getRequestEvent().locals;
-			if (!user) return err(tagged('UnauthorizedError'));
+	safeTry(async function* () {
+		const { user } = getRequestEvent().locals;
+		if (!user) return err(tagged('UnauthorizedError'));
 
-			const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
+		const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
-			yield* containerRemove(dockerId);
+		yield* containerRemove(dockerId);
 
-			return ok();
-		})
-			.orTee(console.error)
-			.mapErr(hideCause)
-	)
+		return ok();
+	})
+		.orTee(console.error)
+		.mapErr(hideCause)
 );
 
 export const shareWorkspace = command(
@@ -106,25 +97,23 @@ export const shareWorkspace = command(
 		userUuidToShare: zUuid()
 	}),
 	({ workspaceUuid, userUuidToShare }) =>
-		RAtoJ(
-			safeTry(async function* () {
-				const { user } = getRequestEvent().locals;
-				if (!user) return err(tagged('UnauthorizedError'));
+		safeTry(async function* () {
+			const { user } = getRequestEvent().locals;
+			if (!user) return err(tagged('UnauthorizedError'));
 
-				const { ownerUuid, sharedUserUuids } = yield* validateWorkspaceAccessSafeTry(
-					user.uuid,
-					workspaceUuid
-				);
+			const { ownerUuid, sharedUserUuids } = yield* validateWorkspaceAccessSafeTry(
+				user.uuid,
+				workspaceUuid
+			);
 
-				if (ownerUuid === userUuidToShare || sharedUserUuids.includes(userUuidToShare)) return ok();
+			if (ownerUuid === userUuidToShare || sharedUserUuids.includes(userUuidToShare)) return ok();
 
-				yield* addWorkspaceSharedUser(workspaceUuid, userUuidToShare);
+			yield* addWorkspaceSharedUser(workspaceUuid, userUuidToShare);
 
-				return ok();
-			})
-				.orTee(console.error)
-				.mapErr(hideCause)
-		)
+			return ok();
+		})
+			.orTee(console.error)
+			.mapErr(hideCause)
 );
 
 export const unshareWorkspace = command(
@@ -133,24 +122,22 @@ export const unshareWorkspace = command(
 		userUuidToUnshare: zUuid()
 	}),
 	({ workspaceUuid, userUuidToUnshare }) =>
-		RAtoJ(
-			safeTry(async function* () {
-				const { user } = getRequestEvent().locals;
-				if (!user) return err(tagged('UnauthorizedError'));
+		safeTry(async function* () {
+			const { user } = getRequestEvent().locals;
+			if (!user) return err(tagged('UnauthorizedError'));
 
-				const { ownerUuid, sharedUserUuids } = yield* validateWorkspaceAccessSafeTry(
-					user.uuid,
-					workspaceUuid
-				);
+			const { ownerUuid, sharedUserUuids } = yield* validateWorkspaceAccessSafeTry(
+				user.uuid,
+				workspaceUuid
+			);
 
-				if (ownerUuid === userUuidToUnshare || sharedUserUuids.includes(userUuidToUnshare))
-					return ok();
-
-				yield* removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
-
+			if (ownerUuid === userUuidToUnshare || sharedUserUuids.includes(userUuidToUnshare))
 				return ok();
-			})
-				.orTee(console.error)
-				.mapErr(hideCause)
-		)
+
+			yield* removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
+
+			return ok();
+		})
+			.orTee(console.error)
+			.mapErr(hideCause)
 );

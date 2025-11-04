@@ -8,7 +8,6 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import type { ErrorTypes, Tagged } from '$lib/error.js';
-	import { JtoR } from '$lib/result.js';
 	import type { Uuid } from '$lib/types.js';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import EthernetPortIcon from '@lucide/svelte/icons/ethernet-port';
@@ -28,7 +27,7 @@
 	export async function deleteTemplate(uuid: Uuid) {
 		deleting = true;
 
-		JtoR(await remoteDeleteTemplate(uuid)).match(() => {
+		(await remoteDeleteTemplate(uuid)).match(() => {
 			toast.success('Template deleted');
 			location.reload(); // TODO: use query function invalidation instead
 		}, handleWithToast('Failed to delete template'));
@@ -84,7 +83,7 @@
 
 			<Card.Content>
 				{#if template.description !== null}
-					<p class="text-sm wrap-break-word text-gray-300">{template.description}</p>
+					<p class="wrap-break-word text-sm text-gray-300">{template.description}</p>
 				{/if}
 			</Card.Content>
 

@@ -1,16 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import GithubAvatar from '$lib/components/GithubAvatar.svelte';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import Input from '$lib/components/ui/input/input.svelte';
-	import * as Popover from '$lib/components/ui/popover/index';
-	import * as Sheet from '$lib/components/ui/sheet/index';
+	import * as Popover from '$lib/components/ui/popover';
+	import * as Sheet from '$lib/components/ui/sheet';
 	import type { ErrorTypes, Tagged } from '$lib/error';
-	import { JtoR } from '$lib/result';
 	import type { WorkspaceContainerInfo } from '$lib/server/workspaces';
 	import type { Uuid } from '$lib/types';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
@@ -53,7 +52,7 @@
 
 	async function start() {
 		starting = true;
-		JtoR(await startWorkspace(workspace.uuid).updates(getWorkspaces()))
+		(await startWorkspace(workspace.uuid).updates(getWorkspaces()))
 			.orTee(handleWithToast('Failed to start workspace'))
 			.orTee(console.log);
 		starting = false;
@@ -61,7 +60,7 @@
 
 	async function stop() {
 		stopping = true;
-		JtoR(await stopWorkspace(workspace.uuid).updates(getWorkspaces())).orTee(
+		(await stopWorkspace(workspace.uuid).updates(getWorkspaces())).orTee(
 			handleWithToast('Failed to start workspace')
 		);
 		stopping = false;
@@ -69,20 +68,20 @@
 
 	async function deleteMe() {
 		deleting = true;
-		JtoR(await deleteWorkspace(workspace.uuid).updates(getWorkspaces())).orTee(
+		(await deleteWorkspace(workspace.uuid).updates(getWorkspaces())).orTee(
 			handleWithToast('Failed to start workspace')
 		);
 		deleting = false;
 	}
 
 	async function addSharedUser(userUuidToShare: Uuid) {
-		JtoR(await shareWorkspace({ workspaceUuid: workspace.uuid, userUuidToShare }))
+		(await shareWorkspace({ workspaceUuid: workspace.uuid, userUuidToShare }))
 			.andTee(() => toast.success('Workspace shared with user'))
 			.orTee(handleWithToast('Failed to share workspace with user'));
 	}
 
 	async function removeSharedUser(userUuidToUnshare: Uuid) {
-		JtoR(await unshareWorkspace({ workspaceUuid: workspace.uuid, userUuidToUnshare }))
+		(await unshareWorkspace({ workspaceUuid: workspace.uuid, userUuidToUnshare }))
 			.andTee(() => toast.success('Workspace shared with user'))
 			.orTee(handleWithToast('Failed to share workspace with user'));
 	}

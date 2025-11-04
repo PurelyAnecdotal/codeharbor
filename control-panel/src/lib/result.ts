@@ -28,18 +28,6 @@ export type InferErr<R> = R extends Result<unknown, infer E> ? E : never;
 
 export type InferAsyncErr<R> = R extends ResultAsync<unknown, infer E> ? E : never;
 
-export const RtoJ = <T, E>(R: Result<T, E>) =>
-	R.match(
-		(value) => ({ success: true as const, value }),
-		(error) => ({ success: false as const, error })
-	);
-
-export const RAtoJ = async <T, E>(R: ResultAsync<T, E>) => RtoJ(await R);
-
-export const JtoR = <T, E>(
-	J: { success: true; value: T } | { success: false; error: E }
-): Result<T, E> => (J.success ? ok(J.value) : err(J.error));
-
 export const JSONSafeParse = Result.fromThrowable(JSON.parse, (err) =>
 	tagged('JSONParseError', err)
 );

@@ -10,7 +10,6 @@
 	import { Label } from '$lib/components/ui/label';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Table from '$lib/components/ui/table/index.js';
-	import { JtoR } from '$lib/result.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
@@ -90,7 +89,7 @@
 
 		creating = true;
 
-		JtoR(
+		(
 			await createTemplate({
 				name,
 				description: description.length > 0 ? description : undefined,
@@ -174,11 +173,11 @@
 	</Alert.Root>
 {/if}
 
-<h2 class="mt-8 mb-4 text-lg">Name</h2>
+<h2 class="mb-4 mt-8 text-lg">Name</h2>
 
 <Input bind:value={name} class="w-sm" />
 
-<h2 class="mt-8 mb-4 text-lg">Description</h2>
+<h2 class="mb-4 mt-8 text-lg">Description</h2>
 
 <Input bind:value={description} class="w-sm" />
 
@@ -193,7 +192,7 @@
 </div>
 
 <h2 class="mt-8 text-lg">Labeled Ports</h2>
-<p class="text-muted-foreground mt-2 w-2xl text-sm">
+<p class="text-muted-foreground w-2xl mt-2 text-sm">
 	All ports are forwarded and can be accessed by changing the port number at the end of the
 	subdomain. However, you can add them as buttons to make them user-accessible. This is useful to,
 	for example, expose a noVNC server. This will also be automatically set by the
