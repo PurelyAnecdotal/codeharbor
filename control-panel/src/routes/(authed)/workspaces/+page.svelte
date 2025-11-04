@@ -10,9 +10,7 @@
 
 	const workspacesListQuery = getWorkspaces();
 
-	const current = $derived(
-		workspacesListQuery.ready ? workspacesListQuery.current : undefined
-	);
+	const current = $derived(workspacesListQuery.ready ? workspacesListQuery.current : undefined);
 </script>
 
 <div class="space-y-4">

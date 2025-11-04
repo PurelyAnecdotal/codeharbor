@@ -9,7 +9,7 @@ import {
 	imageInspect,
 	runTempContainer
 } from '$lib/server/docker';
-import { dockerSocketPath, openvscodeServerMountPath } from '$lib/server/env';
+import { dockerSocketPath, openvscodeServerMountPath } from '$lib/server/config';
 import { cloneGitRepoIntoVolume } from '$lib/server/workspaces';
 import { githubRepoRegex, zPort, type Uuid } from '$lib/types';
 import { desc, eq, getTableColumns } from 'drizzle-orm';
@@ -118,7 +118,7 @@ export const createTemplate = (
 						},
 						{
 							Type: 'bind',
-							Source: dockerSocketPath ?? '/var/run/docker.sock',
+							Source: dockerSocketPath,
 							Target: '/var/run/docker.sock'
 						}
 					]
@@ -318,7 +318,7 @@ const buildExtensionsIntoImage = (
 
 		const query = new URLSearchParams({ t: imageTag, version: '2' });
 		const res = yield* await safeFetch(`http://localhost/v1.49/build?${query}`, {
-			unix: dockerSocketPath ?? '/var/run/docker.sock',
+			unix: dockerSocketPath,
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/x-tar'

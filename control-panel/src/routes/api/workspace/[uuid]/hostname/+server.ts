@@ -2,7 +2,7 @@ import { useDB } from '$lib/server/db';
 import { workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
 import { jsonGroupArray } from '$lib/server/db/utils';
 import { containerInspect } from '$lib/server/docker';
-import { dockerNetworkName } from '$lib/server/env.js';
+import { dockerNetworkName } from '$lib/server/config';
 import { isUuid } from '$lib/types';
 import { eq } from 'drizzle-orm';
 
@@ -53,14 +53,11 @@ export async function GET({ locals, params, url }) {
 
 	if (inContainer) return new Response(inspectInfo.Name.replace('/', ''));
 
-	const network = inspectInfo.NetworkSettings.Networks[dockerNetworkName ?? 'codeharbor'];
+	const network = inspectInfo.NetworkSettings.Networks[dockerNetworkName];
 	if (network) return new Response(network.IPAddress);
 
-	console.error(
-		`Docker network '${dockerNetworkName ?? 'codeharbor'}' not found on container ${dockerId}`
-	);
-	return new Response(
-		`Docker network '${dockerNetworkName ?? 'codeharbor'}' not found on container`,
-		{ status: 500 }
-	);
+	console.error(`Docker network '${dockerNetworkName}' not found on container ${dockerId}`);
+	return new Response(`Docker network '${dockerNetworkName}' not found on container`, {
+		status: 500
+	});
 }

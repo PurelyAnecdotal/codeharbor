@@ -7,8 +7,8 @@
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Sheet from '$lib/components/ui/sheet';
-	import type { ErrorTypes, Tagged } from '$lib/error.js';
-	import type { Uuid } from '$lib/types.js';
+	import type { ErrorTypes, Tagged } from '$lib/error';
+	import type { Uuid } from '$lib/types';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import EthernetPortIcon from '@lucide/svelte/icons/ethernet-port';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
@@ -17,7 +17,7 @@
 	import SquareMousePointerIcon from '@lucide/svelte/icons/square-mouse-pointer';
 	import { ResultAsync } from 'neverthrow';
 	import { toast } from 'svelte-sonner';
-	import { deleteTemplate as remoteDeleteTemplate } from './templates.remote.js';
+	import { deleteTemplate as remoteDeleteTemplate } from './templates.remote';
 
 	let { data } = $props();
 

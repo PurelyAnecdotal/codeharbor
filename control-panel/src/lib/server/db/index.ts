@@ -3,7 +3,7 @@ import { env } from '$env/dynamic/private';
 import { catchWithTag, tagged } from '$lib/error';
 import type { InferAsyncOk } from '$lib/result';
 import * as schema from '$lib/server/db/schema';
-import { databaseUrl } from '$lib/server/env';
+import { databaseUrl } from '$lib/server/config';
 import Database from 'bun:sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { err, ok, Result, safeTry } from 'neverthrow';

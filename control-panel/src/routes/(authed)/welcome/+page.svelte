@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Button from '$lib/components/ui/button/button.svelte';
 	import Input from '$lib/components/ui/input/input.svelte';
-	import { setName } from '$lib/fetch.js';
+	import { setName } from '$lib/fetch';
 
 	const { data } = $props();
 

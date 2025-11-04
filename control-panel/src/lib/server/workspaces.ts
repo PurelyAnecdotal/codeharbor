@@ -16,7 +16,7 @@ import {
 import {
 	dockerNetworkName,
 	openvscodeServerMountPath as openvscodeServerPath
-} from '$lib/server/env';
+} from '$lib/server/config';
 import { getDevcontainerImageMetadata } from '$lib/server/templates';
 import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
@@ -304,7 +304,7 @@ export const createWorkspace = (
 						ReadOnly: true
 					}
 				],
-				NetworkMode: dockerNetworkName ?? 'codeharbor',
+				NetworkMode: dockerNetworkName,
 				NanoCpus: 1 * 1e9,
 				Memory: 1 * gibi,
 				Init: true

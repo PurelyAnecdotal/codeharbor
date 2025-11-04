@@ -2,7 +2,7 @@ import { building } from '$app/environment';
 import { tagged } from '$lib/error';
 import { useDB } from '$lib/server/db';
 import { sessions, users, type Session } from '$lib/server/db/schema';
-import { baseDomain, githubOAuthClientId, githubOAuthClientSecret } from '$lib/server/env';
+import { baseDomain, githubOAuthClientId, githubOAuthClientSecret } from '$lib/server/config';
 import type { Uuid } from '$lib/types';
 import { sha256 } from '@oslojs/crypto/sha2';
 import { encodeBase64url, encodeHexLowerCase } from '@oslojs/encoding';
@@ -84,7 +84,7 @@ export const setSessionTokenCookie = (event: RequestEvent, token: string, expire
 	event.cookies.set(sessionCookieName, token, {
 		expires: expiresAt,
 		path: '/',
-		domain: `.${baseDomain ?? 'codeharbor.localhost'}`
+		domain: `.${baseDomain}`
 	});
 
 export const deleteSessionTokenCookie = (event: RequestEvent) =>
@@ -99,4 +99,6 @@ export const githubResult = safeTry(function* () {
 	const github = new GitHub(githubOAuthClientId, githubOAuthClientSecret, null);
 
 	return ok(github);
-}).orTee(console.error);
+}).orTee((err) => {
+	if (!building) console.error(err);
+});

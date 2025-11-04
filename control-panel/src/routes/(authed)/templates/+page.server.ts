@@ -1,4 +1,4 @@
-import { getTemplatesForUser } from '$lib/server/templates.js';
+import { getTemplatesForUser } from '$lib/server/templates';
 import { redirect } from '@sveltejs/kit';
 
 export async function load({ locals }) {

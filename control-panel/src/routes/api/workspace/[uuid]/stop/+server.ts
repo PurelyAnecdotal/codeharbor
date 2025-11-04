@@ -1,5 +1,5 @@
 import { containerStop } from '$lib/server/docker';
-import { validateWorkspaceAccess } from '$lib/server/workspaces.js';
+import { validateWorkspaceAccess } from '$lib/server/workspaces';
 import { isUuid } from '$lib/types';
 
 export async function POST({ locals, params }) {

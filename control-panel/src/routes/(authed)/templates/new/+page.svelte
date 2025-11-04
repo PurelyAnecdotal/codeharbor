@@ -9,7 +9,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Popover from '$lib/components/ui/popover';
-	import * as Table from '$lib/components/ui/table/index.js';
+	import * as Table from '$lib/components/ui/table';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
@@ -18,7 +18,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { createTemplate } from '../templates.remote.js';
+	import { createTemplate } from '../templates.remote';
 
 	const { data } = $props();
 
