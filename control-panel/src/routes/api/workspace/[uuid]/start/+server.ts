@@ -21,5 +21,5 @@ export async function POST({ locals, params }) {
 		return new Response('Failed to start container', { status: 500 });
 	}
 
-	return new Response('Workspace started', { status: 200 });
+	return new Response('Workspace started');
 }

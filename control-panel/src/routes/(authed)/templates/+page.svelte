@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import GithubIcon from '$lib/components/GitHubIcon.svelte';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Badge } from '$lib/components/ui/badge';
-	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
+	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
+	import * as Sheet from '$lib/components/ui/sheet';
 	import type { ErrorTypes, Tagged } from '$lib/error.js';
 	import { JtoR } from '$lib/result.js';
 	import type { Uuid } from '$lib/types.js';
@@ -18,7 +19,6 @@
 	import { ResultAsync } from 'neverthrow';
 	import { toast } from 'svelte-sonner';
 	import { deleteTemplate as remoteDeleteTemplate } from './templates.remote.js';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
 
 	let { data } = $props();
 

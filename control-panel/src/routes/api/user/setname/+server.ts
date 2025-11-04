@@ -20,5 +20,5 @@ export async function POST({ request, locals }) {
 
 	locals.user.name = newName;
 
-	return new Response('Name updated successfully', { status: 200 });
+	return new Response('Name updated successfully');
 }

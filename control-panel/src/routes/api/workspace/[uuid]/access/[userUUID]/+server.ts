@@ -27,7 +27,7 @@ export async function PUT({ locals, params }) {
 
 	await addWorkspaceSharedUser(workspaceUuid, userUuidToShare);
 
-	return new Response('Workspace shared with user', { status: 200 });
+	return new Response('Workspace shared with user');
 }
 
 export async function DELETE({ locals, params }) {
@@ -52,5 +52,5 @@ export async function DELETE({ locals, params }) {
 
 	await removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
 
-	return new Response('Workspace unshared with user', { status: 200 });
+	return new Response('Workspace unshared with user');
 }

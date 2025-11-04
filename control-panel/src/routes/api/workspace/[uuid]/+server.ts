@@ -33,5 +33,5 @@ export async function DELETE({ locals, params }) {
 		return new Response('Failed to delete workspace from database', { status: 500 });
 	}
 
-	return new Response('Workspace deleted', { status: 200 });
+	return new Response('Workspace deleted');
 }

@@ -33,5 +33,5 @@ export async function GET({ locals, params }) {
 
 	const hasAccess = ownerUuid === authedUserUuid || sharedUserUuids.includes(authedUserUuid);
 
-	return new Response(hasAccess.toString(), { status: 200 });
+	return new Response(hasAccess.toString());
 }
