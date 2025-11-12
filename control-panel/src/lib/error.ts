@@ -72,11 +72,6 @@ export const isTagged = <Tag extends ErrorTypes>(error: unknown): error is Tagge
 	'message' in error &&
 	typeof error.message === 'string';
 
-export const hideCause = <Tag extends ErrorTypes>(taggedError: Tagged<Tag>): Tagged<Tag> => ({
-	_tag: taggedError._tag,
-	message: taggedError.message
-});
-
 export const catchWithTag = <T, Tag extends ErrorTypes>(
 	promise: PromiseLike<T>,
 	tag: Tag

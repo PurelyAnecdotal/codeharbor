@@ -1,11 +1,16 @@
 import { isTagged, tagged } from '$lib/error';
 import type { Transport } from '@sveltejs/kit';
+import { parse, stringify } from 'devalue';
 import { err, Err, ok, Ok } from 'neverthrow';
 
 export const transport: Transport = {
 	Ok: {
-		encode: (maybeOk: unknown) => maybeOk instanceof Ok && maybeOk.value,
-		decode: (value: unknown) => ok(value)
+		encode: (maybeOk: unknown) => {
+			if (!(maybeOk instanceof Ok)) return false;
+
+			return stringify(maybeOk.value);
+		},
+		decode: (value: string) => ok(parse(value))
 	},
 	Err: {
 		encode: (maybeErr: unknown): string | false => {
@@ -20,9 +25,9 @@ export const transport: Transport = {
 
 			const { cause, ...rest } = error;
 
-			return JSON.stringify(rest);
+			return stringify(rest);
 		},
-		decode: (value: string) => err(JSON.parse(value))
+		decode: (value: string) => err(parse(value))
 	},
 	Tagged: {
 		encode: (maybeTagged: unknown): string | false => {
@@ -30,8 +35,8 @@ export const transport: Transport = {
 
 			const { cause, ...rest } = maybeTagged;
 
-			return JSON.stringify(rest);
+			return stringify(rest);
 		},
-		decode: (value: string) => JSON.parse(value)
+		decode: (value: string) => parse(value)
 	}
 };

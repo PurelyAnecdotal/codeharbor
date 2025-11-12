@@ -1,5 +1,5 @@
 import { command, getRequestEvent } from '$app/server';
-import { hideCause, isTagged, tagged } from '$lib/error';
+import { tagged } from '$lib/error';
 import { dbResult, wrapDB } from '$lib/server/db';
 import { templates } from '$lib/server/db/schema';
 import {
@@ -18,9 +18,7 @@ export const createTemplate = command(TemplateCreateOptions, (options) =>
 		yield* createTemplateInternal(options, user.uuid);
 
 		return ok();
-	})
-		.orTee(console.error)
-		.mapErr((err) => (isTagged(err) ? hideCause(err) : err))
+	}).orTee(console.error)
 );
 
 export const deleteTemplate = command(zUuid(), (templateUuid) =>
@@ -44,7 +42,5 @@ export const deleteTemplate = command(zUuid(), (templateUuid) =>
 		yield* wrapDB(db.delete(templates).where(eq(templates.uuid, templateUuid)));
 
 		return ok();
-	})
-		.orTee(console.error)
-		.mapErr(hideCause)
+	}).orTee(console.error)
 );

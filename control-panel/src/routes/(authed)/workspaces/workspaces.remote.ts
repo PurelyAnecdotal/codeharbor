@@ -1,5 +1,5 @@
 import { command, getRequestEvent, query } from '$app/server';
-import { hideCause, tagged } from '$lib/error';
+import { tagged } from '$lib/error';
 import {
 	calculateContainerResourceUsage,
 	containerRemove,
@@ -25,10 +25,10 @@ export const getWorkspaces = query(() =>
 
 		const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
 
-		return ok(workspacesList);
-	})
-		.orTee(console.error)
-		.mapErr(hideCause)
+		const sortedWorkspaces = workspacesList.toSorted((a, b) => (b.state === 'running' ? 1 : 0));
+
+		return ok(sortedWorkspaces);
+	}).orTee(console.error)
 );
 
 export const getWorkspaceStats = query(zUuid(), (workspaceUuid) =>
@@ -41,9 +41,7 @@ export const getWorkspaceStats = query(zUuid(), (workspaceUuid) =>
 		const dockerContainerStats = yield* containerStats(dockerId);
 
 		return ok(calculateContainerResourceUsage(dockerContainerStats));
-	})
-		.orTee(console.error)
-		.mapErr(hideCause)
+	}).orTee(console.error)
 );
 
 export const startWorkspace = command(zUuid(), (workspaceUuid) =>
@@ -56,9 +54,7 @@ export const startWorkspace = command(zUuid(), (workspaceUuid) =>
 		yield* containerStart(dockerId);
 
 		return ok();
-	})
-		.orTee(console.error)
-		.mapErr(hideCause)
+	}).orTee(console.error)
 );
 
 export const stopWorkspace = command(zUuid(), (workspaceUuid) =>
@@ -71,9 +67,7 @@ export const stopWorkspace = command(zUuid(), (workspaceUuid) =>
 		yield* containerStop(dockerId);
 
 		return ok();
-	})
-		.orTee(console.error)
-		.mapErr(hideCause)
+	}).orTee(console.error)
 );
 
 export const deleteWorkspace = command(zUuid(), (workspaceUuid) =>
@@ -86,9 +80,7 @@ export const deleteWorkspace = command(zUuid(), (workspaceUuid) =>
 		yield* containerRemove(dockerId);
 
 		return ok();
-	})
-		.orTee(console.error)
-		.mapErr(hideCause)
+	}).orTee(console.error)
 );
 
 export const shareWorkspace = command(
@@ -111,9 +103,7 @@ export const shareWorkspace = command(
 			yield* addWorkspaceSharedUser(workspaceUuid, userUuidToShare);
 
 			return ok();
-		})
-			.orTee(console.error)
-			.mapErr(hideCause)
+		}).orTee(console.error)
 );
 
 export const unshareWorkspace = command(
@@ -137,7 +127,5 @@ export const unshareWorkspace = command(
 			yield* removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
 
 			return ok();
-		})
-			.orTee(console.error)
-			.mapErr(hideCause)
+		}).orTee(console.error)
 );

@@ -20,6 +20,7 @@
 		"arctic": "^3.7.0",
 		"bits-ui": "^2.11.0",
 		"clsx": "^2.1.1",
+		"devalue": "^5.4.2",
 		"dockerode": "^4.0.9",
 		"drizzle-kit": "^0.31.4",
 		"drizzle-orm": "^0.44.7",

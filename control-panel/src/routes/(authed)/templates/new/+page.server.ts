@@ -1,4 +1,3 @@
-import { hideCause } from '$lib/error';
 import { getUserGitHubRepos, initOctokit } from '$lib/server/octokit';
 import { error, redirect } from '@sveltejs/kit';
 
@@ -17,5 +16,5 @@ export async function load({ locals }) {
 	const octokit = octokitResult.value;
 
 	// return { repos: ok([] as Awaited<ReturnType<typeof octokit.rest.repos.listForAuthenticatedUser>>['data']) };
-	return { repos: (await getUserGitHubRepos(octokit)).orTee(console.error).mapErr(hideCause) };
+	return { repos: (await getUserGitHubRepos(octokit)).orTee(console.error) };
 }
