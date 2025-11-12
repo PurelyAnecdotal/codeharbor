@@ -1,4 +1,3 @@
-import type { TemplateCreateOptions } from '$lib/server/templates';
 import type { WorkspaceCreateOptions } from '$lib/server/workspaces';
 import { letterRegex, nameRegex, type Uuid } from '$lib/types';
 import { ResultAsync } from 'neverthrow';

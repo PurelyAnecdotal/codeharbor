@@ -61,7 +61,8 @@ export const workspaces = sqliteTable('workspaces', {
 	dockerId: text({ length: 64 }).notNull().unique(),
 	// repoURL: text().notNull(),
 	folder: text().notNull(),
-	templateUuid: uuid().references(() => templates.uuid)
+	templateUuid: uuid().references(() => templates.uuid),
+	lastAccessedAt: integer({ mode: 'timestamp' }),
 });
 
 export const workspacesRelations = relations(workspaces, ({ one, many }) => ({

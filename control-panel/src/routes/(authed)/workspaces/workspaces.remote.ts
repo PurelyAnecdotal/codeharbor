@@ -1,5 +1,7 @@
 import { command, getRequestEvent, query } from '$app/server';
 import { tagged } from '$lib/error';
+import { dbResult } from '$lib/server/db';
+import { workspaces } from '$lib/server/db/schema';
 import {
 	calculateContainerResourceUsage,
 	containerRemove,
@@ -15,6 +17,7 @@ import {
 } from '$lib/server/workspaces';
 import { zUuid } from '$lib/types';
 import { redirect } from '@sveltejs/kit';
+import { eq } from 'drizzle-orm';
 import { err, ok, safeTry } from 'neverthrow';
 import z from 'zod';
 
@@ -25,7 +28,7 @@ export const getWorkspaces = query(() =>
 
 		const workspacesList = yield* getWorkspacesForWorkspaceList(user.uuid);
 
-		const sortedWorkspaces = workspacesList.toSorted((a, b) => (b.state === 'running' ? 1 : 0));
+		const sortedWorkspaces = workspacesList.toSorted((a, b) => (b.state === 'running' ? 1 : -1));
 
 		return ok(sortedWorkspaces);
 	}).orTee(console.error)
@@ -49,9 +52,12 @@ export const startWorkspace = command(zUuid(), (workspaceUuid) =>
 		const { user } = getRequestEvent().locals;
 		if (!user) return err(tagged('UnauthorizedError'));
 
+		const db = yield* dbResult;
+
 		const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
 		yield* containerStart(dockerId);
+		db.update(workspaces).set({ lastAccessedAt: new Date() }).where(eq(workspaces.uuid, workspaceUuid));
 
 		return ok();
 	}).orTee(console.error)

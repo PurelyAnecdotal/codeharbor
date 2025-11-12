@@ -1,19 +1,30 @@
-import type { Next } from "hono";
-import { upgradeWebSocket } from "hono/bun";
-import { type GatewayContext, type Uuid } from "./index.js";
-import { proxy } from "hono/proxy";
-import { frontendServer, inContainer } from "./env.js";
+import type { Next } from 'hono';
+import { upgradeWebSocket } from 'hono/bun';
+import { getCookie } from 'hono/cookie';
+import { proxy } from 'hono/proxy';
+import { frontendServer, inContainer, sessionCookieName } from './env.js';
+import { type GatewayContext, type Uuid } from './index.js';
 
 export async function proxyWorkspace(uuid: Uuid, port: number, c: GatewayContext, next: Next) {
+	const sessionToken = getCookie(c, sessionCookieName);
+
 	const searchParams = new URLSearchParams({ inContainer: inContainer.toString() });
 	const res = await fetch(
-		`http://${frontendServer}/api/workspace/${uuid}/hostname?${searchParams}`
+		`http://${frontendServer}/api/workspace/${uuid}/hostname?${searchParams}`,
+		{ headers: { cookie: `${sessionCookieName}=${sessionToken}` } }
 	);
+
 	const text = await res.text();
-	if (res.status !== 200) return c.text(text, res.status as any);
+	if (res.status !== 200)
+		return c.text(`Failed to retrieve workspace hostname: ${text}`, res.status as any);
 
 	const urlObj = new URL(c.req.url);
 	const containerHost = `${text}:${port}`;
+
+	fetch(`http://${frontendServer}/api/workspace/${uuid}/last-accessed`, {
+		method: 'PATCH',
+		headers: { cookie: `${sessionCookieName}=${sessionToken}` }
+	}).catch((err) => console.error('Failed to update lastAccessedAt time:', err));
 
 	if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(containerHost, c, next);
 

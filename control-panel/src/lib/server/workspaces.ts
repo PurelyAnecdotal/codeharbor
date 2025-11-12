@@ -333,9 +333,17 @@ export const createWorkspace = (
 			})
 		);
 
-		await containerStart(workspaceContainer.id).orTee((err) =>
-			console.error('Failed to start workspace container:', err)
-		);
+		await containerStart(workspaceContainer.id)
+			.orTee((err) => console.error('Failed to start workspace container:', err))
+			.andThen(() =>
+				wrapDB(
+					db
+						.update(workspaces)
+						.set({ lastAccessedAt: new Date() })
+						.where(eq(workspaces.uuid, workspaceUuid))
+				)
+			)
+			.orTee((err) => console.error('Failed to update lastAccessedAt time:', err));
 
 		return ok();
 	});
