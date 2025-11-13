@@ -15,8 +15,12 @@ export async function proxyWorkspace(uuid: Uuid, port: number, c: GatewayContext
 	);
 
 	const text = await res.text();
-	if (res.status !== 200)
+	if (res.status !== 200) {
+		if (text === 'Container is not running')
+			return c.text('Workspace is not running', res.status as any);
+
 		return c.text(`Failed to retrieve workspace hostname: ${text}`, res.status as any);
+	}
 
 	const urlObj = new URL(c.req.url);
 	const containerHost = `${text}:${port}`;
@@ -27,11 +31,15 @@ export async function proxyWorkspace(uuid: Uuid, port: number, c: GatewayContext
 	}).catch((err) => console.error('Failed to update lastAccessedAt time:', err));
 
 	if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(containerHost, c, next);
-
-	return proxy(`http://${containerHost}${c.req.path}${urlObj.search}`, {
-		...c.req,
-		customFetch: (req) => fetch(req, { redirect: 'manual' })
-	});
+	
+	try {
+		return await proxy(`http://${containerHost}${c.req.path}${urlObj.search}`, {
+			...c.req,
+			customFetch: (req) => fetch(req, { redirect: 'manual' })
+		});
+	} catch (err) {
+		return c.text(`Failed to proxy request to workspace container: ${err}`, 502);
+	}
 }
 
 export const proxyWebsocket = (destHost: string, c: GatewayContext, next: Next) =>
