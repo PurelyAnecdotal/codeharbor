@@ -15,16 +15,6 @@ export const letterRegex = /[a-z]+/i;
 export const githubRepoCombinedRegex = /^[\w.-]+\/[\w.-]+$/;
 export const githubRepoRegex = /^[\w.-]+$/;
 
-// overrides Dockerode.ContainerInfo.State
-export type ContainerState =
-	| 'created'
-	| 'running'
-	| 'paused'
-	| 'restarting'
-	| 'exited'
-	| 'removing'
-	| 'dead';
-
 export interface GitHubUserInfo {
 	id: number;
 	login: string;

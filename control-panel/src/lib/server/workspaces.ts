@@ -1,5 +1,9 @@
 import { tagged, wrapOctokit } from '$lib/error';
 import { type InferAsyncOk } from '$lib/result';
+import {
+	dockerNetworkName,
+	openvscodeServerMountPath as openvscodeServerPath
+} from '$lib/server/config';
 import { dbResult, useDB, wrapDB } from '$lib/server/db';
 import { templates, users, workspaces, workspacesToSharedUsers } from '$lib/server/db/schema';
 import { jsonGroupArray } from '$lib/server/db/utils';
@@ -13,12 +17,8 @@ import {
 	listContainers,
 	runTempContainer
 } from '$lib/server/docker';
-import {
-	dockerNetworkName,
-	openvscodeServerMountPath as openvscodeServerPath
-} from '$lib/server/config';
 import { getDevcontainerImageMetadata } from '$lib/server/templates';
-import { githubRepoRegex, zUuid, type ContainerState, type Uuid } from '$lib/types';
+import { githubRepoRegex, zUuid, type Uuid } from '$lib/types';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { union } from 'drizzle-orm/sqlite-core';
@@ -100,9 +100,7 @@ export const getWorkspacesForWorkspaceList = (userUuid: Uuid) =>
 
 					return [];
 				})
-				.map(async ([workspace, containerInfo]) => {
-					const state = containerInfo.State as ContainerState;
-
+				.map(async ([workspace, { State: state }]) => {
 					const sharedUsers = sharedUserEntries.filter(({ uuid }) =>
 						workspace.sharedUserUuids.includes(uuid)
 					);
@@ -333,17 +331,9 @@ export const createWorkspace = (
 			})
 		);
 
-		await containerStart(workspaceContainer.id)
-			.orTee((err) => console.error('Failed to start workspace container:', err))
-			.andThen(() =>
-				wrapDB(
-					db
-						.update(workspaces)
-						.set({ lastAccessedAt: new Date() })
-						.where(eq(workspaces.uuid, workspaceUuid))
-				)
-			)
-			.orTee((err) => console.error('Failed to update lastAccessedAt time:', err));
+		await containerStart(workspaceContainer.id).orTee((err) =>
+			console.error('Failed to start workspace container:', err)
+		);
 
 		return ok();
 	});

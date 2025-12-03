@@ -62,7 +62,7 @@ export const workspaces = sqliteTable('workspaces', {
 	// repoURL: text().notNull(),
 	folder: text().notNull(),
 	templateUuid: uuid().references(() => templates.uuid),
-	lastAccessedAt: integer({ mode: 'timestamp' }),
+	lastAccessedAt: integer({ mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
 
 export const workspacesRelations = relations(workspaces, ({ one, many }) => ({

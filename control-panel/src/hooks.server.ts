@@ -3,7 +3,6 @@ import { autostopIntervalMs, autostopThresholdMs } from '$lib/server/config';
 import { dbResult, wrapDB } from '$lib/server/db';
 import { workspaces } from '$lib/server/db/schema';
 import { containerStop, listContainers } from '$lib/server/docker';
-import type { ContainerState } from '$lib/types';
 import type { Handle, ServerInit } from '@sveltejs/kit';
 import { ok, safeTry } from 'neverthrow';
 
@@ -39,31 +38,42 @@ const autostop = () =>
 	safeTry(async function* () {
 		const db = yield* dbResult;
 
-		const workspacesData = (yield* wrapDB(
+		const workspacesData = yield* wrapDB(
 			db
 				.select({
-					dockerId: workspaces.dockerId,
+					uuid: workspaces.uuid,
+					containerId: workspaces.dockerId,
 					lastAccessedAt: workspaces.lastAccessedAt
 				})
 				.from(workspaces)
-		));
+		);
 
-		const lastAccessMap = new Map(workspacesData.map((w) => [w.dockerId, w.lastAccessedAt]));
+		const containerIdToWorkspaceData = new Map(
+			workspacesData.map(({ containerId, uuid, lastAccessedAt }) => [
+				containerId,
+				{ uuid, lastAccessedAt }
+			])
+		);
 
-		const workspaceIds = workspacesData.map((w) => w.dockerId);
+		const workspaceContainerIds = workspacesData.map((w) => w.containerId);
 
-		(yield* listContainers())
-			.filter((c) => workspaceIds.includes(c.Id) && (c.State as ContainerState) === 'running')
-			.forEach((container) => {
-				const lastAccessedAt = lastAccessMap.get(container.Id);
-				if (!lastAccessedAt) return;
+		const now = Date.now();
 
-				if (Date.now() - lastAccessedAt.getTime() > autostopThresholdMs) {
-					console.log(`Autostopping workspace container ${container.Id} due to inactivity`);
-
-					containerStop(container.Id).orTee(console.error);
-				}
-			});
+		await Promise.allSettled(
+			(yield* listContainers())
+				.filter((c) => workspaceContainerIds.includes(c.Id) && c.State === 'running')
+				.flatMap(({ Id: containerId }) => {
+					const workspaceData = containerIdToWorkspaceData.get(containerId);
+					return workspaceData ? [{ containerId, ...workspaceData }] : [];
+				})
+				.filter(({ lastAccessedAt }) => now - lastAccessedAt.getTime() > autostopThresholdMs)
+				.map(({ containerId, uuid }) => {
+					console.log(`Autostopping container ${containerId} for workspace ${uuid} due to inactivity`);
+					return containerStop(containerId).orTee((err) =>
+						console.error(`Failed to autostop container ${containerId} for workspace ${uuid}:`, err)
+					);
+				})
+		);
 
 		return ok();
 	}).orTee(console.error);

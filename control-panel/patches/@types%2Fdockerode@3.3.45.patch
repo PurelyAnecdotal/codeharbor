@@ -1,0 +1,29 @@
+diff --git a/index.d.ts b/index.d.ts
+index 7d02c6c8b21fa93151ac6f00bb4a2bc6cc1308f2..64782cc3196039bbe8217b497070b9a76b611ca3 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -411,7 +411,7 @@ declare namespace Dockerode {
+         Created: number;
+         Ports: Port[];
+         Labels: { [label: string]: string };
+-        State: string;
++        State: ContainerState;
+         Status: string;
+         HostConfig: {
+             NetworkMode: string;
+@@ -583,7 +583,7 @@ declare namespace Dockerode {
+         Path: string;
+         Args: string[];
+         State: {
+-            Status: string;
++            Status: ContainerState;
+             Running: boolean;
+             Paused: boolean;
+             Restarting: boolean;
+@@ -2348,3 +2348,5 @@ declare class Dockerode {
+ }
+ 
+ export = Dockerode;
++
++type ContainerState = "created" | "running" | "paused" | "restarting" | "exited" | "removing" | "dead";
+\ No newline at end of file

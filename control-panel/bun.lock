@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "codeharbor",
@@ -52,6 +53,9 @@
         "zod": "^4.1.12",
       },
     },
+  },
+  "patchedDependencies": {
+    "@types/dockerode@3.3.45": "patches/@types%2Fdockerode@3.3.45.patch",
   },
   "overrides": {
     "cpu-features": "0.0.0",

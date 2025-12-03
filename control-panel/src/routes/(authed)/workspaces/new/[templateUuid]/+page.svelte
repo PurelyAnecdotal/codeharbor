@@ -3,10 +3,10 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import Input from '$lib/components/ui/input/input.svelte';
-	import { workspaceCreate } from '$lib/fetch';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import SquareDashedMousePointerIcon from '@lucide/svelte/icons/square-dashed-mouse-pointer';
 	import { toast } from 'svelte-sonner';
+	import { createWorkspace } from '../../workspaces.remote';
 
 	const { data } = $props();
 
@@ -16,25 +16,23 @@
 
 	const create = async () => {
 		creating = true;
-		await workspaceCreate({
+
+		const workspaceCreateResult = await createWorkspace({
 			name: name.length > 0 ? name : data.randomName,
 			source: {
 				type: 'template',
 				templateUuid: data.template.uuid
 			}
-		})
-			.andTee(async (resp) => {
-				if (resp.ok) goto('/workspaces');
-				else {
-					const error = await resp.text();
-					console.error('Failed to create workspace: ' + error);
-					toast.error('Failed to create workspace', { description: error });
-				}
-			})
-			.orTee((err) => {
+		});
+
+		await workspaceCreateResult.match(
+			() => goto('/workspaces'),
+			(err) => {
 				console.error('Failed to create workspace: ' + err.message);
 				toast.error('Failed to create workspace', { description: err.message });
-			});
+			}
+		);
+
 		creating = false;
 	};
 </script>

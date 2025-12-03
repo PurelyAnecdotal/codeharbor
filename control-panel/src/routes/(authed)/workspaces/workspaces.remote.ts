@@ -9,11 +9,14 @@ import {
 	containerStats,
 	containerStop
 } from '$lib/server/docker';
+import { initOctokit } from '$lib/server/octokit';
 import {
 	addWorkspaceSharedUser,
+	createWorkspace as createWorkspaceInternal,
 	getWorkspacesForWorkspaceList,
 	removeWorkspaceSharedUser,
-	validateWorkspaceAccessSafeTry
+	validateWorkspaceAccessSafeTry,
+	WorkspaceCreateOptions
 } from '$lib/server/workspaces';
 import { zUuid } from '$lib/types';
 import { redirect } from '@sveltejs/kit';
@@ -57,7 +60,9 @@ export const startWorkspace = command(zUuid(), (workspaceUuid) =>
 		const { dockerId } = yield* validateWorkspaceAccessSafeTry(user.uuid, workspaceUuid);
 
 		yield* containerStart(dockerId);
-		db.update(workspaces).set({ lastAccessedAt: new Date() }).where(eq(workspaces.uuid, workspaceUuid));
+		db.update(workspaces)
+			.set({ lastAccessedAt: new Date() })
+			.where(eq(workspaces.uuid, workspaceUuid));
 
 		return ok();
 	}).orTee(console.error)
@@ -134,4 +139,17 @@ export const unshareWorkspace = command(
 
 			return ok();
 		}).orTee(console.error)
+);
+
+export const createWorkspace = command(WorkspaceCreateOptions, ({ name, source }) =>
+	safeTry(async function* () {
+		const { user } = getRequestEvent().locals;
+		if (!user) return err(tagged('UnauthorizedError'));
+
+		const octokit = yield* initOctokit(user.ghAccessToken);
+
+		yield* await createWorkspaceInternal({ name, source }, user.uuid, octokit);
+
+		return ok();
+	})
 );
