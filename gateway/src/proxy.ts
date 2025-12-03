@@ -25,13 +25,12 @@ export async function proxyWorkspace(uuid: Uuid, port: number, c: GatewayContext
 	const urlObj = new URL(c.req.url);
 	const containerHost = `${text}:${port}`;
 
-	fetch(`http://${frontendServer}/api/workspace/${uuid}/last-accessed`, {
-		method: 'PATCH',
-		headers: { cookie: `${sessionCookieName}=${sessionToken}` }
-	}).catch((err) => console.error('Failed to update lastAccessedAt time:', err));
+	const touch = () => touchWorkspace(uuid, sessionToken!);
 
-	if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(containerHost, c, next);
-	
+	touch();
+
+	if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(containerHost, c, next, touch);
+
 	try {
 		return await proxy(`http://${containerHost}${c.req.path}${urlObj.search}`, {
 			...c.req,
@@ -42,7 +41,12 @@ export async function proxyWorkspace(uuid: Uuid, port: number, c: GatewayContext
 	}
 }
 
-export const proxyWebsocket = (destHost: string, c: GatewayContext, next: Next) =>
+export const proxyWebsocket = (
+	destHost: string,
+	c: GatewayContext,
+	next: Next,
+	onClientMessage: () => any
+) =>
 	upgradeWebSocket((c) => {
 		const search = new URL(c.req.url).search;
 
@@ -73,8 +77,10 @@ export const proxyWebsocket = (destHost: string, c: GatewayContext, next: Next) 
 
 			async onMessage({ data }) {
 				await serverWsReady;
-				if (serverWs.readyState === WebSocket.OPEN)
+				if (serverWs.readyState === WebSocket.OPEN) {
+					onClientMessage();
 					serverWs.send(data instanceof Blob ? await data.arrayBuffer() : data);
+				}
 			},
 
 			onClose({ code, reason }) {
@@ -86,3 +92,11 @@ export const proxyWebsocket = (destHost: string, c: GatewayContext, next: Next) 
 			}
 		};
 	})(c, next);
+
+const touchWorkspace = (workspaceUuid: Uuid, sessionToken: string) =>
+	fetch(`http://${frontendServer}/api/workspace/${workspaceUuid}/last-accessed`, {
+		method: 'PATCH',
+		headers: { cookie: `${sessionCookieName}=${sessionToken}` }
+	}).catch((err) =>
+		console.error(`Failed to update lastAccessedAt time for workspace ${workspaceUuid}:`, err)
+	);
