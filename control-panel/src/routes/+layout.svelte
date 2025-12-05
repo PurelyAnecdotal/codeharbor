@@ -60,7 +60,6 @@
 		<NavigationMenu.List>
 			{@render navlink('/workspaces', 'Workspaces')}
 			{@render navlink('/templates', 'Templates')}
-			{@render navlink('/admin', 'Admin')}
 		</NavigationMenu.List>
 	</NavigationMenu.Root>
 {/snippet}

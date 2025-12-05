@@ -84,8 +84,24 @@
 			return;
 		}
 
-		const repo = reposResult.value.find((r) => r.id === selectedRepoID);
-		if (!repo) return;
+		let ghRepoOwner: string;
+		let ghRepoName: string;
+
+		if (chooseFromUserRepos) {
+			if (customRepoOwner.length === 0 || customRepoName.length === 0) {
+				toast.error('Repository owner and name are required');
+				return;
+			}
+
+			ghRepoOwner = customRepoOwner;
+			ghRepoName = customRepoName;
+		} else {
+			const repo = reposResult.value.find((r) => r.id === selectedRepoID);
+			if (!repo) return;
+
+			ghRepoOwner = repo.owner.login;
+			ghRepoName = repo.name;
+		}
 
 		creating = true;
 
@@ -93,8 +109,8 @@
 			await createTemplate({
 				name,
 				description: description.length > 0 ? description : undefined,
-				ghRepoOwner: repo.owner.login,
-				ghRepoName: repo.name,
+				ghRepoOwner,
+				ghRepoName,
 				devcontainer: useDevcontainerConfig,
 				portLabels: portLabels.map((pl) => [pl.port!, pl.label!] as const)
 			})
@@ -112,66 +128,101 @@
 	}
 
 	let portLabels: PortLabel[] = $state([]);
+
+	let chooseFromUserRepos = $state(true);
+	let customRepoOwner = $state('');
+	let customRepoName = $state('');
+
+	function toggleCustomRepo() {
+		chooseFromUserRepos = !chooseFromUserRepos;
+	}
 </script>
 
 <h1 class="mb-8 text-3xl">Create a new template</h1>
 
-<h2 class="mb-4 text-lg">Select from your repositories</h2>
+<h2 class="mb-4 text-lg">
+	Select {chooseFromUserRepos ? 'from your repositories' : 'a public repository'}
+</h2>
 
-{#if reposResult.isOk()}
-	<Popover.Root bind:open={repoPickerOpen}>
-		<Popover.Trigger bind:ref={triggerRef}>
-			{#snippet child({ props })}
-				<Button
-					variant="outline"
-					class="w-[200px] justify-between"
-					{...props}
-					role="combobox"
-					aria-expanded={repoPickerOpen}
-				>
-					<GithubIcon class="fill-white" />
-					{selectedRepoName ?? 'Select a repo...'}
-					<ChevronsUpDownIcon class="opacity-50" />
-				</Button>
-			{/snippet}
-		</Popover.Trigger>
+{#if chooseFromUserRepos}
+	{#if reposResult.isOk()}
+		<Popover.Root bind:open={repoPickerOpen}>
+			<Popover.Trigger bind:ref={triggerRef}>
+				{#snippet child({ props })}
+					<Button
+						variant="outline"
+						class="w-[200px] justify-between"
+						{...props}
+						role="combobox"
+						aria-expanded={repoPickerOpen}
+					>
+						<GithubIcon class="fill-white" />
+						{selectedRepoName ?? 'Select a repo...'}
+						<ChevronsUpDownIcon class="opacity-50" />
+					</Button>
+				{/snippet}
+			</Popover.Trigger>
 
-		<Popover.Content class="w-xs p-0">
-			<Command.Root>
-				<Command.Input placeholder="Search repos..." />
-				<Command.List>
-					<Command.Empty>No repo found.</Command.Empty>
-					<Command.Group value="frameworks">
-						{#each reposResult.value as { name, id, owner, full_name } (id)}
-							<Command.Item
-								value={full_name}
-								onSelect={() => {
-									selectedRepoID = id;
-									closeAndFocusTrigger();
-								}}
-							>
-								<CheckIcon class={selectedRepoID === id ? '' : 'text-transparent'} />
-								{#if owner.id === page.data.session?.id}
-									{name}
-								{:else}
-									{owner.login}/{name}
-								{/if}
-							</Command.Item>
-						{/each}
-					</Command.Group>
-				</Command.List>
-			</Command.Root>
-		</Popover.Content>
-	</Popover.Root>
+			<Popover.Content class="w-xs p-0">
+				<Command.Root>
+					<Command.Input placeholder="Search repos..." />
+					<Command.List>
+						<Command.Empty>No repo found.</Command.Empty>
+						<Command.Group value="frameworks">
+							{#each reposResult.value as { name, id, owner, full_name } (id)}
+								<Command.Item
+									value={full_name}
+									onSelect={() => {
+										selectedRepoID = id;
+										closeAndFocusTrigger();
+									}}
+								>
+									<CheckIcon class={selectedRepoID === id ? '' : 'text-transparent'} />
+									{#if owner.id === page.data.session?.id}
+										{name}
+									{:else}
+										{owner.login}/{name}
+									{/if}
+								</Command.Item>
+							{/each}
+						</Command.Group>
+					</Command.List>
+				</Command.Root>
+			</Popover.Content>
+		</Popover.Root>
+	{:else}
+		<Alert.Root variant="destructive">
+			<CircleAlertIcon class="size-4" />
+			<Alert.Title>Failed to load repositories</Alert.Title>
+			<Alert.Description>
+				{reposResult.error.message}
+			</Alert.Description>
+		</Alert.Root>
+	{/if}
+
+	{@render toggleCustomRepoButton('Or use a public GitHub repository')}
 {:else}
-	<Alert.Root variant="destructive">
-		<CircleAlertIcon class="size-4" />
-		<Alert.Title>Failed to load repositories</Alert.Title>
-		<Alert.Description>
-			{reposResult.error.message}
-		</Alert.Description>
-	</Alert.Root>
+	<div class="grid w-full max-w-sm grid-flow-col grid-rows-2 gap-2">
+		<Label for="repo-owner-input">Repository Owner</Label>
+		<div class="flex items-center gap-2">
+			<Input id="repo-owner-input" bind:value={customRepoOwner} /> /
+		</div>
+
+		<Label for="repo-name-input">Repository Name</Label>
+		<Input id="repo-name-input" bind:value={customRepoName} />
+	</div>
+
+	{@render toggleCustomRepoButton('Or select from your repositories')}
 {/if}
+
+{#snippet toggleCustomRepoButton(text: string)}
+	<button
+		onclick={toggleCustomRepo}
+		class="text-muted-foreground mt-4 block cursor-pointer text-sm underline"
+	>
+		{text}
+	</button>
+{/snippet}
 
 <h2 class="mb-4 mt-8 text-lg">Name</h2>
 
@@ -192,10 +243,10 @@
 </div>
 
 <h2 class="mt-8 text-lg">Labeled Ports</h2>
-<p class="text-muted-foreground w-2xl mt-2 text-sm">
+<p class="text-muted-foreground mt-2 max-w-2xl text-sm">
 	All ports are forwarded and can be accessed by changing the port number at the end of the
 	subdomain. However, you can add them as buttons to make them user-accessible. This is useful to,
-	for example, expose a noVNC server. This will also be automatically set by the
+	for example, expose a noVNC server. These will also be automatically set by the
 	<span class="font-mono">portsAttributes</span> field in the
 	<span class="font-mono">devcontainer.json</span>.
 </p>
@@ -254,4 +305,13 @@
 			<LoaderCircleIcon class="animate-spin" />
 		{/if}
 	</Button>
+
+	{#if useDevcontainerConfig}
+		<p class="text-muted-foreground mt-4 max-w-2xl text-sm">
+			The template will need to be prebuilt, which can take over ten minutes depending on the size
+			of the devcontainer image. You can close this page after starting as it will continue in the
+			background. The loading state on this page may not update if it takes over a minute. (This is
+			a known issue.)
+		</p>
+	{/if}
 </div>
