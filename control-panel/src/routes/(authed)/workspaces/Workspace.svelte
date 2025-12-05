@@ -32,6 +32,7 @@
 	import { toast } from 'svelte-sonner';
 	import {
 		deleteWorkspace,
+		getUserUuidFromGithub,
 		getWorkspaces,
 		getWorkspaceStats,
 		shareWorkspace,
@@ -80,20 +81,30 @@
 			.orTee(handleWithToast('Failed to share workspace with user'));
 	}
 
-	async function removeSharedUser(userUuidToUnshare: Uuid) {
-		(await unshareWorkspace({ workspaceUuid: workspace.uuid, userUuidToUnshare }))
+	async function addSharedUserByGitHubUsername(githubUsername: string | undefined) {
+		if (githubUsername === undefined) return;
+
+		const uuidResult = await getUserUuidFromGithub(githubUsername);
+		if (uuidResult.isErr()) {
+			handleWithToast('Could not share with user')(uuidResult.error);
+			return;
+		}
+
+		(await shareWorkspace({ workspaceUuid: workspace.uuid, userUuidToShare: uuidResult.value }))
 			.andTee(() => toast.success('Workspace shared with user'))
 			.orTee(handleWithToast('Failed to share workspace with user'));
+	}
+
+	async function removeSharedUser(userUuidToUnshare: Uuid) {
+		(await unshareWorkspace({ workspaceUuid: workspace.uuid, userUuidToUnshare }))
+			.andTee(() => toast.success('Workspace unshared with user'))
+			.orTee(handleWithToast('Failed to unshare workspace with user'));
 	}
 
 	const handleWithToast = (errMsg: string) => (err: Tagged<ErrorTypes>) =>
 		toast.error(errMsg, { description: err.message });
 
 	const yourID = $derived(page.data.user?.uuid!);
-
-	let addSharedUserPopoverOpen = $state(false);
-
-	let addSharedUserInput = $state('');
 
 	const percentFormatter = new Intl.NumberFormat('en-US', {
 		style: 'percent',
@@ -108,6 +119,8 @@
 	const openVSCodeServerPort = 3000;
 
 	const uuidUrl = `${pageUrlObj.protocol}//${workspace.uuid}-${openVSCodeServerPort}.${pageUrlObj.host}/?folder=${workspace.folder}`;
+
+	let addSharedUserQueue: string[] = $state([]);
 </script>
 
 <Card.Root>
@@ -254,29 +267,29 @@
 						{@render userCard(sharedUser)}
 					{/each}
 
-					<Popover.Root bind:open={addSharedUserPopoverOpen}>
-						<Popover.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="outline"
-									class="mt-2 w-full"
-									aria-expanded={addSharedUserPopoverOpen}
-								>
-									<UserPlusIcon />
-									Add people
-								</Button>
-							{/snippet}
-						</Popover.Trigger>
-						<Popover.Content class="flex p-0">
-							<!-- <Command.Root>
+					{#each addSharedUserQueue as _, i}
+						<div class="flex gap-2">
+							<Input placeholder="Add by username" bind:value={addSharedUserQueue[i]} />
+							<Button
+								variant="outline"
+								onclick={async () => {
+									await addSharedUserByGitHubUsername(addSharedUserQueue[i]);
+									addSharedUserQueue.splice(i, 1);
+								}}
+							>
+								Add
+							</Button>
+						</div>
+					{/each}
+
+					<Button variant="outline" class="mt-2 w-full" onclick={() => addSharedUserQueue.push('')}>
+						<UserPlusIcon />
+						Add people
+					</Button>
+					<!-- <Command.Root>
 							<Command.Input placeholder="Search users..." />
 							<Command.List></Command.List>
 						</Command.Root> -->
-							<Input placeholder="Add by username" bind:value={addSharedUserInput} />
-							<!-- <Button variant="outline" onclick={() => addSharedUser(addSharedUserInput)}>Add</Button> -->
-						</Popover.Content>
-					</Popover.Root>
 				</div>
 
 				<Sheet.Footer>
@@ -324,10 +337,10 @@
 				<DropdownMenu.Content align="end">
 					<DropdownMenu.Group>
 						{#if yourID === workspace.owner.uuid && userUuid !== yourID}
-							<DropdownMenu.Item>
+							<!-- <DropdownMenu.Item>
 								<UsersIcon />
 								Transfer ownership
-							</DropdownMenu.Item>
+							</DropdownMenu.Item> -->
 						{/if}
 						{#if userUuid !== workspace.owner.uuid}
 							<DropdownMenu.Item onclick={() => removeSharedUser(userUuid)}>

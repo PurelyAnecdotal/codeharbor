@@ -47,7 +47,8 @@ const errorMessages = {
 	ContainerExitCodeError: 'Container exited with a non-zero exit code',
 	TarPackError: 'Failed to create tar pack',
 	TarUnpackError: 'Failed to extract tar archive',
-	DevcontainerExtensionImageBuildError: 'Failed to build devcontainer image with extensions'
+	DevcontainerExtensionImageBuildError: 'Failed to build devcontainer image with extensions',
+	GitHubUserNotCreated: 'GitHub user has not been created in the system'
 } as const;
 export type ErrorTypes = keyof typeof errorMessages;
 

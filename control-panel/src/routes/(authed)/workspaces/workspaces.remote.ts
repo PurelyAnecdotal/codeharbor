@@ -1,7 +1,7 @@
 import { command, getRequestEvent, query } from '$app/server';
-import { tagged } from '$lib/error';
-import { dbResult } from '$lib/server/db';
-import { workspaces } from '$lib/server/db/schema';
+import { tagged, wrapOctokit } from '$lib/error';
+import { dbResult, wrapDB } from '$lib/server/db';
+import { users, workspaces } from '$lib/server/db/schema';
 import {
 	calculateContainerResourceUsage,
 	containerRemove,
@@ -132,7 +132,7 @@ export const unshareWorkspace = command(
 				workspaceUuid
 			);
 
-			if (ownerUuid === userUuidToUnshare || sharedUserUuids.includes(userUuidToUnshare))
+			if (ownerUuid === userUuidToUnshare || !sharedUserUuids.includes(userUuidToUnshare))
 				return ok();
 
 			yield* removeWorkspaceSharedUser(workspaceUuid, userUuidToUnshare);
@@ -151,5 +151,31 @@ export const createWorkspace = command(WorkspaceCreateOptions, ({ name, source }
 		yield* await createWorkspaceInternal({ name, source }, user.uuid, octokit);
 
 		return ok();
+	})
+);
+
+export const getUserUuidFromGithub = command(z.string(), (ghUsername) =>
+	safeTry(async function* () {
+		const { user } = getRequestEvent().locals;
+		if (!user) return err(tagged('UnauthorizedError'));
+
+		const db = yield* dbResult;
+
+		const octokit = yield* initOctokit(user.ghAccessToken);
+		const {
+			data: { id: ghId }
+		} = yield* wrapOctokit(
+			octokit.users.getByUsername({
+				username: ghUsername
+			})
+		);
+
+		const retrievedUser = yield* wrapDB(
+			db.select({ uuid: users.uuid }).from(users).where(eq(users.ghId, ghId)).limit(1)
+		).map((r) => r[0]);
+
+		if (!retrievedUser) return err(tagged('GitHubUserNotCreated'));
+
+		return ok(retrievedUser.uuid);
 	})
 );
