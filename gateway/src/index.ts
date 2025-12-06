@@ -32,10 +32,15 @@ app.all('*', async (c, next) => {
 
 		if (c.req.header('Upgrade') === 'websocket') return proxyWebsocket(frontendServer, c, next);
 
-		return proxy(`http://${frontendServer}${c.req.path}${urlObj.search}`, {
-			...c.req,
-			customFetch: (req) => fetch(req, { redirect: 'manual' })
-		});
+		try {
+			return await proxy(`http://${frontendServer}${c.req.path}${urlObj.search}`, {
+				...c.req,
+				customFetch: (req) => fetch(req, { redirect: 'manual' })
+			});
+		} catch (err) {
+			console.error('Error proxying request to frontend server:', err);
+			return c.text('Failed to proxy request to frontend server', 502);
+		}
 	}
 
 	const suffix = `.${baseDomain}`;

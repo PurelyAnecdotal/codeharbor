@@ -45,7 +45,7 @@ export const proxyWebsocket = (
 	destHost: string,
 	c: GatewayContext,
 	next: Next,
-	onClientMessage: () => any
+	onClientMessage = () => {}
 ) =>
 	upgradeWebSocket((c) => {
 		const search = new URL(c.req.url).search;
