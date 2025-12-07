@@ -1,45 +1,50 @@
 import { includeIgnoreFile } from '@eslint/compat';
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
-import * as drizzle from 'eslint-plugin-drizzle';
-import neverthrow from 'eslint-plugin-neverthrow';
 import svelte from 'eslint-plugin-svelte';
+import { defineConfig } from 'eslint/config';
 import globals from 'globals';
-import { fileURLToPath } from 'node:url';
-import ts from 'typescript-eslint';
+import { fileURLToPath } from 'bun';
+import tseslint from 'typescript-eslint';
 import svelteConfig from './svelte.config.js';
 
-const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
+const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url));
 
-export default ts.config(
+// Derived from https://github.com/sveltejs/eslint-plugin-svelte/blob/main/README.md#typescript-project
+export default defineConfig([
 	includeIgnoreFile(gitignorePath),
 	js.configs.recommended,
-	...ts.configs.strict,
+	...tseslint.configs.strict /*TypeChecked*/,
+	...tseslint.configs.stylistic /*TypeChecked*/,
 	...svelte.configs.recommended,
 	prettier,
 	...svelte.configs.prettier,
-	...drizzle.configs.recommended,
 	{
-		plugins: { neverthrow },
+		languageOptions: {
+			globals: { ...globals.browser, ...globals.node },
+			parserOptions: {
+				parser: tseslint.parser
+				// projectService: true
+			}
+		},
 		rules: {
-			'neverthrow/must-use-result': 'error'
+			'no-undef': 'off',
+			'no-duplicate-imports': 'error',
+			eqeqeq: 'error'
+			// '@typescript-eslint/promise-function-async': 'error',
+			// '@typescript-eslint/strict-boolean-expressions': 'error'
 		}
 	},
 	{
-		languageOptions: {
-			globals: { ...globals.browser, ...globals.node }
-		},
-		rules: { 'no-undef': 'off' }
-	},
-	{
-		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
+		name: 'svelte',
+		files: ['**/*.svelte', '**/*.svelte.js', '**/*.svelte.ts'],
 		languageOptions: {
 			parserOptions: {
-				projectService: true,
+				// projectService: false,
 				extraFileExtensions: ['.svelte'],
-				parser: ts.parser,
 				svelteConfig
 			}
 		}
+		// extends: [tseslint.configs.disableTypeChecked] // Type-checked rules are broken in .svelte files https://github.com/sveltejs/svelte/issues/16264
 	}
-);
+]);

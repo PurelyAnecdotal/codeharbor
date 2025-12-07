@@ -51,14 +51,14 @@ export async function GET({ locals, params, url }) {
 
 	const inspectInfo = inspectResult.value;
 
-	if (!inspectInfo.State.Running) 
-		return new Response('Container is not running', { status: 500 });
+	if (!inspectInfo.State.Running) return new Response('Container is not running', { status: 500 });
 
 	if (inContainer) return new Response(inspectInfo.Name.replace('/', ''));
 
 	const network = inspectInfo.NetworkSettings.Networks[dockerNetworkName];
 	if (network) {
-		if (network.IPAddress === '') return new Response('Container has no IP address (Is it running?)', { status: 500 });
+		if (network.IPAddress === '')
+			return new Response('Container has no IP address (Is it running?)', { status: 500 });
 		return new Response(network.IPAddress);
 	}
 

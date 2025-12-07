@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import GitHubIcon from '$lib/components/GitHubIcon.svelte';
 	import Button, { buttonVariants } from '$lib/components/ui/button/button.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as NavigationMenu from '$lib/components/ui/navigation-menu';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import DiamondIcon from '@lucide/svelte/icons/diamond';
-	import GitHubIcon from '$lib/components/GitHubIcon.svelte';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import SquareArrowRightIcon from '@lucide/svelte/icons/square-arrow-right';
@@ -25,7 +26,7 @@
 
 <div class="flex h-screen flex-col">
 	<div class="m-4 flex items-center gap-4">
-		<a href="/" class="flex items-center">
+		<a href={resolve('/')} class="flex items-center">
 			<DiamondIcon class="h-4" />
 			CodeHarbor
 		</a>
@@ -34,7 +35,10 @@
 			{#if user.name}
 				{@render navbar()}
 			{:else if page.route.id !== '/(authed)/welcome'}
-				<a href="/welcome" class="flex items-center gap-1 rounded p-2 outline-2 outline-blue-400">
+				<a
+					href={resolve('/welcome')}
+					class="flex items-center gap-1 rounded p-2 outline-2 outline-blue-400"
+				>
 					<SquareArrowRightIcon />
 					Finish setup
 				</a>
@@ -83,11 +87,11 @@
 		</DropdownMenu.Trigger>
 
 		<DropdownMenu.Content class="w-56">
-			<DropdownMenu.Item onclick={() => goto('/settings')}>
+			<DropdownMenu.Item onclick={() => goto(resolve('/settings'))}>
 				<SettingsIcon />Settings
 			</DropdownMenu.Item>
 
-			<DropdownMenu.Item onclick={() => goto('/logout')}>
+			<DropdownMenu.Item onclick={() => goto(resolve('/logout'))}>
 				<LogOutIcon />Log out
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>

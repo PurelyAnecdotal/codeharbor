@@ -14,6 +14,25 @@ const config = {
 		adapter: adapter(),
 		experimental: {
 			remoteFunctions: true
+		},
+
+		// https://svelte.dev/docs/kit/configuration#typescript
+		typescript: {
+			config(config) {
+				/** @type {string[]} */
+				// eslint-disable-next-line
+				const existingInclude = config.include;
+
+				return {
+					...config,
+					include: [
+						'../svelte.config.js',
+						'../drizzle.config.ts',
+						'../eslint.config.ts',
+						...existingInclude
+					]
+				};
+			}
 		}
 	}
 };

@@ -3,7 +3,7 @@
 	import DiamondIcon from '@lucide/svelte/icons/diamond';
 </script>
 
-<div class="flex flex-grow items-center justify-center">
+<div class="flex grow items-center justify-center">
 	<Card.Root>
 		<Card.Header class="flex items-center justify-center">
 			<DiamondIcon />

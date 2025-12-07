@@ -1,4 +1,3 @@
-import type { WorkspaceCreateOptions } from '$lib/server/workspaces';
 import { letterRegex, nameRegex } from '$lib/types';
 import { ResultAsync } from 'neverthrow';
 import { toast } from 'svelte-sonner';

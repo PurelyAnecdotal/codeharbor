@@ -78,8 +78,8 @@ const gibi = 1024 ** 3;
 
 export const getContainerResourceLimits = (dockerId: string) =>
 	containerInspect(dockerId).map((info) => ({
-		cpusLimit: info.HostConfig.NanoCpus ? info.HostConfig.NanoCpus * 1e-9 : undefined,
-		memoryLimitGiB: info.HostConfig.Memory ? info.HostConfig.Memory / gibi : undefined
+		cpusLimit: info.HostConfig.NanoCpus !== undefined ? info.HostConfig.NanoCpus * 1e-9 : undefined,
+		memoryLimitGiB: info.HostConfig.Memory !== undefined ? info.HostConfig.Memory / gibi : undefined
 	}));
 
 export const runTempContainer = (createOptions: Dockerode.ContainerCreateOptions) =>
@@ -92,9 +92,9 @@ export const runTempContainer = (createOptions: Dockerode.ContainerCreateOptions
 		return ok({
 			id: container.id,
 			remove: () =>
-				containerRemove(container.id).orTee((err) =>
-					console.error(`Failed to remove temporary container ${createOptions.name}`, err)
-				)
+				containerRemove(container.id).orTee((err) => {
+					console.error(`Failed to remove temporary container ${createOptions.name?.toString()}`, err);
+				})
 		});
 	});
 

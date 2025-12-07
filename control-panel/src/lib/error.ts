@@ -1,4 +1,4 @@
-import { Result, ResultAsync } from 'neverthrow';
+import { ResultAsync } from 'neverthrow';
 
 const errorMessages = {
 	UnknownError: 'An unknown error occurred',

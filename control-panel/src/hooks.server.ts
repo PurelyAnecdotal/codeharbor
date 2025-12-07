@@ -9,7 +9,7 @@ import { ok, safeTry } from 'neverthrow';
 const handleAuth: Handle = async ({ event, resolve }) => {
 	const sessionToken = event.cookies.get(auth.sessionCookieName);
 
-	if (!sessionToken) {
+	if (sessionToken === undefined) {
 		event.locals.user = null;
 		event.locals.session = null;
 		return resolve(event);
@@ -30,8 +30,8 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 
 export const handle: Handle = handleAuth;
 
-export const init: ServerInit = async () => {
-	setInterval(autostop, autostopIntervalMs);
+export const init: ServerInit = () => {
+	setInterval(() => void autostop, autostopIntervalMs);
 };
 
 const autostop = () =>
@@ -68,10 +68,15 @@ const autostop = () =>
 				})
 				.filter(({ lastAccessedAt }) => now - lastAccessedAt.getTime() > autostopThresholdMs)
 				.map(({ containerId, uuid }) => {
-					console.log(`Autostopping container ${containerId} for workspace ${uuid} due to inactivity`);
-					return containerStop(containerId).orTee((err) =>
-						console.error(`Failed to autostop container ${containerId} for workspace ${uuid}:`, err)
+					console.log(
+						`Autostopping container ${containerId} for workspace ${uuid} due to inactivity`
 					);
+					return containerStop(containerId).orTee((err) => {
+						console.error(
+							`Failed to autostop container ${containerId} for workspace ${uuid}:`,
+							err
+						);
+					});
 				})
 		);
 

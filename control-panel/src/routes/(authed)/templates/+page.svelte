@@ -83,7 +83,7 @@
 
 			<Card.Content>
 				{#if template.description !== null}
-					<p class="wrap-break-word text-sm text-gray-300">{template.description}</p>
+					<p class="text-sm wrap-break-word text-gray-300">{template.description}</p>
 				{/if}
 			</Card.Content>
 
@@ -118,7 +118,7 @@
 							<Sheet.Header>
 								<Sheet.Title>Labeled Ports</Sheet.Title>
 
-								{#each Object.entries(template.portLabelsJson) as [port, label]}
+								{#each Object.entries(template.portLabelsJson) as [port, label] (port)}
 									<div class="flex items-center justify-between gap-4 border-b py-2">
 										<span>{label}</span>
 										<span class="font-mono text-sm text-gray-400">{port}</span>

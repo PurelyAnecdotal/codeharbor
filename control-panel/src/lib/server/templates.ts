@@ -84,7 +84,7 @@ export const createTemplate = (
 			(description !== undefined && description.length > 500)
 		)
 			return err(tagged('FormValidationError'));
-		if (description !== undefined && description.length === 0) description = undefined;
+		if (description?.length === 0) description = undefined;
 
 		const templateUuid = crypto.randomUUID();
 		let builtImageName: string | undefined = undefined;
@@ -92,7 +92,7 @@ export const createTemplate = (
 
 		let portLabels: Record<string, string> = Object.fromEntries(portLabelsEntries ?? []);
 
-		if (devcontainer) {
+		if (devcontainer === true) {
 			const gitCloneUrl = `https://github.com/${ghRepoOwner}/${ghRepoName}.git`;
 
 			const volumeName = `codeharbor-template-${templateUuid}`;
@@ -181,7 +181,7 @@ export const createTemplate = (
 				})
 			);
 
-			portLabels = { ...devcontainerPortLabels, ...(portLabels ?? {}) };
+			portLabels = { ...devcontainerPortLabels, ...portLabels };
 		}
 
 		yield* useDB((db) =>
@@ -237,7 +237,7 @@ export const getDevcontainerImageMetadata = (imageName: string) =>
 	safeTry(async function* () {
 		const image = yield* imageInspect(imageName);
 
-		const metadata = image.Config.Labels?.['devcontainer.metadata'];
+		const metadata = image.Config.Labels['devcontainer.metadata'];
 		if (metadata === undefined) return err(tagged('ImageDevcontainerMetadataMissingError'));
 
 		const parsedMetadataResult = DevcontainerImageMetadataSubset.safeParse(

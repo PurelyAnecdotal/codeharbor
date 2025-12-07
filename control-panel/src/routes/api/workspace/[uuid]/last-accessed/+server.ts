@@ -36,7 +36,7 @@ export async function PATCH({ locals, params }) {
 	if (ownerUuid !== authedUserUuid && !sharedUserUuids.includes(authedUserUuid))
 		return new Response('Forbidden', { status: 403 });
 
-    const currentTime = new Date();
+	const currentTime = new Date();
 
 	const updateResult = await useDB((db) =>
 		db

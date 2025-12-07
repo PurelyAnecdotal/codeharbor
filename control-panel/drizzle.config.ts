@@ -1,9 +1,10 @@
 import { defineConfig } from 'drizzle-kit';
 
+if (process.env.DATABASE_URL === undefined) throw new Error('DATABASE_URL environment variable is not set');
+
 export default defineConfig({
 	schema: './src/lib/server/db/schema.ts',
 	dialect: 'sqlite',
-	// @ts-ignore
 	dbCredentials: { url: process.env.DATABASE_URL },
 	verbose: true,
 	strict: true

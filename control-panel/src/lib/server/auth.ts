@@ -80,15 +80,17 @@ export type SessionValidationResult = Awaited<ReturnType<typeof validateSessionT
 export const invalidateSession = (sessionId: string) =>
 	useDB((db) => db.delete(sessions).where(eq(sessions.id, sessionId)));
 
-export const setSessionTokenCookie = (event: RequestEvent, token: string, expiresAt: Date) =>
+export const setSessionTokenCookie = (event: RequestEvent, token: string, expiresAt: Date) => {
 	event.cookies.set(sessionCookieName, token, {
 		expires: expiresAt,
 		path: '/',
 		domain: `.${baseDomain}`
 	});
+};
 
-export const deleteSessionTokenCookie = (event: RequestEvent) =>
+export const deleteSessionTokenCookie = (event: RequestEvent) => {
 	event.cookies.delete(sessionCookieName, { path: '/' });
+};
 
 export const githubResult = safeTry(function* () {
 	if (building) return err(tagged('GitHubOAuthUnavailableError'));

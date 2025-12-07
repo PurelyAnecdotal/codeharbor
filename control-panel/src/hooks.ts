@@ -37,6 +37,7 @@ export const transport: Transport = {
 
 			return stringify(rest);
 		},
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 		decode: (value: string) => parse(value)
 	}
 };
